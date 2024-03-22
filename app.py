@@ -12,26 +12,29 @@ import time
 
 
 # Create db connection
-con = st.experimental_connection(
+con = st.connection(
     "app_finance",
     type="sql",
-    url="sqlite:///app_finance.db"
+    url="postgresql+psycopg2://airflow:airflow@localhost/airflow"
 )
 
 # -----------------------------Define caching functions ---------------------------------
 
 @st.cache_data
 def load_datas():
-    query = "SELECT \
-        g.symbol, g.shortName, \
-        p.close AS lastPrice, \
-        e.targetMedianPrice, \
-        e.numberOfAnalystOpinions, \
-        (e.targetMedianPrice - p.close) AS absoluteDiff, \
-        ((e.targetMedianPrice - p.close) / p.close) AS relativeDiff \
-    FROM general_information AS g \
-    LEFT JOIN last_stock_prices p ON g.symbol = p.symbol \
-    LEFT JOIN last_estimates e ON g.symbol = e.symbol"
+    query = """
+    SELECT
+        g."symbol", g."shortName",
+        p."close" AS "lastPrice",
+        p."date" AS "dateLastPrice",
+        e."targetMedianPrice",
+        e."numberOfAnalystOpinions",
+        (e."targetMedianPrice" - p."close") AS "absoluteDiff",
+        ((e."targetMedianPrice" - p."close") / p."close") AS "relativeDiff"
+    FROM general_information AS g
+    LEFT JOIN last_stock_prices p ON g."symbol" = p."symbol"
+    LEFT JOIN last_estimates e ON g."symbol" = e."symbol"
+    """
     
     query_result = con.query(query)
     datas = pd.DataFrame(query_result)
