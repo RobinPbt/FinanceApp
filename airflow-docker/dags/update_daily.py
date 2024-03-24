@@ -77,14 +77,11 @@ def extract_data_single(query_result, selected_items, query_time=None):
     
     return results_list
 
-default_args = {
-    'start_date': dt.datetime.now(),
-    'schedule_interval': dt.timedelta(minutes=5),
-}
 
 @dag(
     dag_id="update_db_daily",
-    default_args=default_args,
+    schedule_interval="0 18 * * 1-5", # Once a day (18h) after market closing on market opening days (monday to friday)
+    start_date=pendulum.datetime(2024, 1, 1, tz="UTC"),
     catchup=False,
 )
 def update_db_daily():

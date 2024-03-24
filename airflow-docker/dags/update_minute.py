@@ -22,14 +22,10 @@ from yahooquery import Ticker
 # PATH_TO_PYTHON_BINARY = sys.executable
 # BASE_DIR = tempfile.gettempdir()
 
-default_args = {
-    'start_date': dt.datetime.now(),
-    'schedule_interval': dt.timedelta(minutes=5),
-}
-
 @dag(
     dag_id="update_db_minute",
-    default_args=default_args,
+    schedule_interval="*/5 8-18 * * 1-5", # Run on french market opening hours (monday to friday 9-17 + 1 hour extra before and after)
+    start_date=pendulum.datetime(2024, 1, 1, tz="UTC"),
     catchup=False,
 )
 def update_db_minute():

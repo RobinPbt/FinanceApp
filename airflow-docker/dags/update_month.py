@@ -112,14 +112,10 @@ def extract_data_multiple(query_result_list, selected_items_list, query_time=Non
     
     return combined_extract
 
-default_args = {
-    'start_date': dt.datetime.now(),
-    'schedule_interval': dt.timedelta(minutes=5),
-}
-
 @dag(
     dag_id="update_db_monthly",
-    default_args=default_args,
+    schedule_interval="0 0 1 * *", # Once a month (midnight fisrt day of month)
+    start_date=pendulum.datetime(2024, 1, 1, tz="UTC"),
     catchup=False,
 )
 def update_db_monthly():
