@@ -9,6 +9,8 @@ import keyboard
 import os
 import psutil
 import time
+import datetime as dt
+import pytz
 
 
 # Create db connection
@@ -21,7 +23,7 @@ con = st.connection(
 # -----------------------------Define caching functions ---------------------------------
 
 @st.cache_data
-def load_datas():
+def load_estimates():
     query = """
     SELECT
         g."symbol", g."shortName",
@@ -33,12 +35,61 @@ def load_datas():
         ((e."targetMedianPrice" - p."close") / p."close") AS "relativeDiff"
     FROM general_information AS g
     LEFT JOIN last_stock_prices p ON g."symbol" = p."symbol"
-    LEFT JOIN last_estimates e ON g."symbol" = e."symbol"
+    LEFT JOIN last_estimates e ON g."symbol" = e."symbol";
     """
     
     query_result = con.query(query)
-    datas = pd.DataFrame(query_result)
-    return datas
+    estimates = pd.DataFrame(query_result)
+    return estimates
+
+@st.cache_data
+def get_tickers():
+    query = """
+        SELECT DISTINCT(symbol) 
+        FROM stock_price_minute;
+    """
+
+    tickers_list = con.query(query)
+    return tickers_list
+
+@st.cache_data
+def get_day_stock_prices(symbol):
+    
+    # Get current day of week
+    timezone = pytz.timezone('CET')
+    query_day = dt.datetime.now(tz=timezone).isoweekday()
+
+    # If we are saturday, get the stock prices of the day before (friday)
+    if query_day == 6:
+        query = """
+            SELECT *
+            FROM stock_price_minute
+            WHERE symbol = '{}' AND date > current_date - INTERVAL '1 day'
+            ORDER BY date DESC;
+        """.format(symbol)
+
+    # If we are sunday, get the stock prices of 2 days before (friday)
+    elif query_day == 7:
+        query = """
+            SELECT *
+            FROM stock_price_minute
+            WHERE symbol = '{}' AND date > current_date - INTERVAL '2 day'
+            ORDER BY date DESC;
+        """.format(symbol)
+
+    # Else get the stock prices of the current day 
+    else:
+        query = """
+            SELECT *
+            FROM stock_price_minute
+            WHERE symbol = '{}' AND date > current_date
+            ORDER BY date DESC;
+        """.format(symbol)
+
+    query_result = con.query(query)
+    stock_prices = pd.DataFrame(query_result)
+    return stock_prices
+
 
 # -----------------------------Define containers ----------------------------------------
 header = st.container()
@@ -48,7 +99,7 @@ visualization = st.container()
 
 # -----------------------------Load datas -----------------------------------------------
 
-datas = load_datas()
+estimates = load_estimates()
 
 # -----------------------------Define sidebar -------------------------------------------
 
@@ -64,13 +115,35 @@ if exit_app:
     p = psutil.Process(pid)
     p.terminate()
 
+# Page selection
+page_selection = st.sidebar.selectbox('Navigation', ['Estimates', 'Stock prices'])
+
+if page_selection == 'Stock prices':
+    
+    tickers = get_tickers()
+    ticker_selection = st.sidebar.selectbox('Ticker selection', tickers)
+
 # -----------------------------Dashboard ------------------------------------------------
 # Presentation of our application
-with header:
-    st.write("""
-    # Estimates vs. current price
-    Difference between CAC 40 stock prices and the median target price set by analysts.
-    Results are ordered from most undervalued to most overvalued companies on this criteria.
-    """)
-    
-    st.dataframe(data=datas)
+if page_selection == 'Estimates':
+
+    with header:
+        st.write("""
+        # Estimates vs. current price
+        Difference between CAC 40 stock prices and the median target price set by analysts.
+        Results are ordered from most undervalued to most overvalued companies on this criteria.
+        """)
+        
+        st.dataframe(data=estimates)
+
+elif page_selection == 'Stock prices':
+
+    stock_prices = get_day_stock_prices(ticker_selection)
+
+    with header:
+        st.write("""
+        # Stock prices
+        Select a ticker to get its stock price evolution over the day.
+        """)
+        
+        st.dataframe(data=stock_prices)
