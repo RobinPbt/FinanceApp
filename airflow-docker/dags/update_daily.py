@@ -113,6 +113,10 @@ def update_db_daily():
         list_tickers = [ticker, ticker2, ticker3]
         tickers = Ticker(list_tickers)
 
+        # Get current time (CET timezone)
+        timezone = pytz.timezone('CET')
+        query_time = dt.datetime.now(tz=timezone).replace(microsecond=0)
+
         # Request to get last available prices. If no values for dividends add 0 
         last_prices = tickers.history(period='1d', interval='1d').reset_index()
         if last_prices.shape[1] == 8:
@@ -120,10 +124,8 @@ def update_db_daily():
 
         # Request API with current time to get last estimates
         query_result = tickers.financial_data
-        timezone = pytz.timezone('CET')
-        query_time = dt.datetime.now(tz=timezone).replace(microsecond=0)
         selected_items = ['targetHighPrice', 'targetLowPrice', 'targetMeanPrice', 'targetMedianPrice', 'recommendationMean', 'recommendationKey', 'numberOfAnalystOpinions']
-        last_estimates = pd.DataFrame(extract_data_single(query_result, selected_items, query_time=query_time))
+        last_estimates = extract_data_single(query_result, selected_items, query_time=query_time)
 
         # Save results in csv file
         files_dir_path = "/opt/airflow/dags/files/"
@@ -161,7 +163,7 @@ def update_db_daily():
         
         conn.commit()
 
-        # Insert the result of the request in the table stock_price_minute
+        # Insert the result of the request in the table permanent table
         query_prices = """
             INSERT INTO stock_price_daily
             SELECT *
