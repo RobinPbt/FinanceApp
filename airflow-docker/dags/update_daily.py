@@ -166,8 +166,10 @@ def update_db_daily():
         list_tickers = [ticker, ticker2, ticker3]
         tickers = Ticker(list_tickers)
 
-        # Request to get last available prices
+        # Request to get last available prices. If no values for dividends add 0 
         last_prices = tickers.history(period='1d', interval='1d').reset_index()
+        if last_prices.shape[1] == 8:
+            last_prices['dividends'] = 0
 
         # Request API with current time to get last estimates
         query_result = tickers.financial_data
