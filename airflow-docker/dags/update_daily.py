@@ -33,6 +33,8 @@ from functions import *
 )
 def update_db_daily():
   
+    # Create stock prices tables
+    
     create_stock_price_daily_table = PostgresOperator(
         task_id="create_stock_price_daily_table",
         postgres_conn_id="finapp_postgres_conn",
@@ -67,6 +69,8 @@ def update_db_daily():
                 "dividends" FLOAT
             );""",
     )
+
+    # Create estimates tables
 
     create_estimates_daily_table = PostgresOperator(
         task_id="create_estimates_daily_table",
@@ -103,6 +107,51 @@ def update_db_daily():
             );""",
     )
 
+    # Create valuation tables
+
+    create_valuations_daily_table = PostgresOperator(
+        task_id="create_valuations_daily_table",
+        postgres_conn_id="finapp_postgres_conn",
+        sql="""
+            CREATE TABLE IF NOT EXISTS valuations_daily (
+                "symbol" TEXT,
+                "date" TIMESTAMP,
+                "enterpriseValue" BIGINT,
+                "forwardPE" FLOAT,
+                "bookValue" FLOAT,
+                "priceToBook" FLOAT,
+                "enterpriseToRevenue" FLOAT,
+                "enterpriseToEbitda" FLOAT,
+                "beta" FLOAT,
+                "pegRatio" FLOAT,
+                "trailingPE" FLOAT,
+                "marketCap" BIGINT,
+                "priceToSalesTrailing12Months" FLOAT
+            );""",
+    )
+
+    create_last_valuations_table = PostgresOperator(
+        task_id="create_last_valuations_table",
+        postgres_conn_id="finapp_postgres_conn",
+        sql="""
+            DROP TABLE IF EXISTS last_valuations;
+            CREATE TABLE last_valuations (
+                "symbol" TEXT,
+                "date" TIMESTAMP,
+                "enterpriseValue" BIGINT,
+                "forwardPE" FLOAT,
+                "bookValue" FLOAT,
+                "priceToBook" FLOAT,
+                "enterpriseToRevenue" FLOAT,
+                "enterpriseToEbitda" FLOAT,
+                "beta" FLOAT,
+                "pegRatio" FLOAT,
+                "trailingPE" FLOAT,
+                "marketCap" BIGINT,
+                "priceToSalesTrailing12Months" FLOAT
+            );""",
+    )
+
     @task(task_id="download_data")
     def download_data():
 
@@ -122,12 +171,25 @@ def update_db_daily():
         if last_prices.shape[1] == 8:
             last_prices['dividends'] = 0
 
-        # Request API with current time to get last estimates
+        # Request API to get last estimates
         query_result = tickers.financial_data
         selected_items = ['targetHighPrice', 'targetLowPrice', 'targetMeanPrice', 'targetMedianPrice', 'recommendationMean', 'recommendationKey', 'numberOfAnalystOpinions']
         last_estimates = extract_data_single(query_result, selected_items, query_time=query_time)
 
-        # Save results in csv file
+        
+        # Request API to get last valuations
+        query_result_1 = tickers.key_stats
+        selected_items_1 = ['enterpriseValue', 'forwardPE', 'bookValue', 'priceToBook', 'enterpriseToRevenue', 'enterpriseToEbitda', 'beta', 'pegRatio']
+
+        query_result_2 = tickers.summary_detail
+        selected_items_2 = ['trailingPE', 'marketCap', 'priceToSalesTrailing12Months']
+
+        query_result_list = [query_result_1, query_result_2]
+        selected_items_list = [selected_items_1, selected_items_2]
+
+        valuations = extract_data_multiple(query_result_list, selected_items_list, query_time=query_time)
+
+        # Save results in csv files
         files_dir_path = "/opt/airflow/dags/files/"
 
         if not os.path.exists(os.path.exists(files_dir_path)):
@@ -138,6 +200,9 @@ def update_db_daily():
 
         estimates_file_path = os.path.join(files_dir_path, "daily_estimates.csv")
         last_estimates.to_csv(estimates_file_path, index=False)
+
+        valuations_file_path = os.path.join(files_dir_path, "valuations.csv")
+        valuations.to_csv(valuations_file_path, index=False)
     
     @task(task_id="update_db")
     def update_db():       
@@ -160,6 +225,13 @@ def update_db_daily():
                 "COPY last_estimates FROM STDIN WITH CSV HEADER DELIMITER AS ',' QUOTE '\"'",
                 file,
             )
+
+        valuations_file_path = "/opt/airflow/dags/files/valuations.csv"
+        with open(valuations_file_path, "r") as file:
+            cur.copy_expert(
+                "COPY last_valuations FROM STDIN WITH CSV HEADER DELIMITER AS ',' QUOTE '\"'",
+                file,
+            )
         
         conn.commit()
 
@@ -168,6 +240,7 @@ def update_db_daily():
             INSERT INTO stock_price_daily
             SELECT *
             FROM temp_prices;
+            DROP TABLE IF EXISTS temp_prices;
         """
 
         query_estimates = """
@@ -176,10 +249,17 @@ def update_db_daily():
             FROM last_estimates;
         """
 
+        query_valuations = """
+            INSERT INTO valuations_daily
+            SELECT *
+            FROM last_valuations;
+        """
+
         cur.execute(query_prices)
         cur.execute(query_estimates)
+        cur.execute(query_valuations)
         conn.commit()
 
-    [create_stock_price_daily_table, create_temp_prices_table, create_estimates_daily_table, create_last_estimates_table] >> download_data() >> update_db()
+    [create_stock_price_daily_table, create_temp_prices_table, create_estimates_daily_table, create_last_estimates_table, create_valuations_daily_table, create_last_valuations_table] >> download_data() >> update_db()
 
 dag = update_db_daily()
