@@ -40,8 +40,7 @@ def update_db_monthly():
         postgres_conn_id="finapp_postgres_conn",
         sql="""
             CREATE TABLE IF NOT EXISTS general_information (
-                "symbol" TEXT,
-                "date" TIMESTAMP,
+                "symbol" TEXT PRIMARY KEY,
                 "sector" TEXT,
                 "industry" TEXT,
                 "country" TEXT,
@@ -63,8 +62,7 @@ def update_db_monthly():
         sql="""
             DROP TABLE IF EXISTS temp_general_info;
             CREATE TABLE temp_general_info (
-                "symbol" TEXT,
-                "date" TIMESTAMP,
+                "symbol" TEXT PRIMARY KEY,
                 "sector" TEXT,
                 "industry" TEXT,
                 "country" TEXT,
@@ -186,7 +184,7 @@ def update_db_monthly():
         query_result_list = [query_result_1, query_result_2]
         selected_items_list = [selected_items_1, selected_items_2]
 
-        general_information = extract_data_multiple(query_result_list, selected_items_list, query_time=query_time)
+        general_information = extract_data_multiple(query_result_list, selected_items_list, query_time=None)
 
         # Cast fullTimeEmployees in INT, impossible since NaN is incompatbale with INT type
         # general_information['fullTimeEmployees'] = general_information['fullTimeEmployees'].apply(lambda x : int(x) if not np.isnan(x) else np.NaN)
@@ -259,7 +257,21 @@ def update_db_monthly():
         query_general_information_1 = """
             INSERT INTO general_information
             SELECT *
-            FROM temp_general_info;
+            FROM temp_general_info
+            ON CONFLICT(symbol)
+            DO UPDATE SET
+                "sector" = EXCLUDED."sector",
+                "industry" = EXCLUDED."industry",
+                "country" = EXCLUDED."country",
+                "fullTimeEmployees" = EXCLUDED."fullTimeEmployees",
+                "regularMarketSource" = EXCLUDED."regularMarketSource",
+                "exchange" = EXCLUDED."exchange",
+                "exchangeName" = EXCLUDED."exchangeName",
+                "exchangeDataDelayedBy" = EXCLUDED."exchangeDataDelayedBy",
+                "marketState" = EXCLUDED."marketState",
+                "quoteType" = EXCLUDED."quoteType",
+                "currency" = EXCLUDED."currency",
+                "shortName" = EXCLUDED."shortName";
         """
 
         query_general_information_2 = """DROP TABLE IF EXISTS temp_general_info;"""
