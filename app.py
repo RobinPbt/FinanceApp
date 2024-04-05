@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import plotly.express as px
 import keyboard
 import os
 import psutil
@@ -12,6 +13,7 @@ import time
 import datetime as dt
 import pytz
 
+from app_functions import *
 
 # Create db connection
 con = st.connection(
@@ -20,8 +22,32 @@ con = st.connection(
     url="postgresql+psycopg2://airflow:airflow@localhost/airflow"
 )
 
+# -----------------------------Define general functions ---------------------------------
+
+def get_single_symbol_info(table_name, symbol, order_by=None, limit=1):
+
+    if order_by:
+        query = """
+            SELECT *
+            FROM {}
+            WHERE symbol = '{}'
+            ORDER BY "{}" DESC
+            LIMIT {};
+        """.format(table_name, symbol, order_by, str(limit))
+    else:
+        query = """
+            SELECT *
+            FROM {}
+            WHERE symbol = '{}';
+        """.format(table_name, symbol)
+
+    query_result = con.query(query)
+    symbol_info = pd.DataFrame(query_result)
+    return symbol_info
+
 # -----------------------------Define caching functions ---------------------------------
 
+# Page estimates
 @st.cache_data
 def load_estimates():
     query = """
@@ -42,6 +68,7 @@ def load_estimates():
     estimates = pd.DataFrame(query_result)
     return estimates
 
+# Page company information
 @st.cache_data
 def get_tickers():
     query = """
@@ -90,16 +117,23 @@ def get_day_stock_prices(symbol):
     stock_prices = pd.DataFrame(query_result)
     return stock_prices
 
+@st.cache_data
+def get_all_symbol_info(symbol):
+
+    general_info = get_single_symbol_info("general_information", symbol)
+    ratings = get_single_symbol_info("ratings", symbol, order_by="date", limit=1)
+    estimates = get_single_symbol_info("last_estimates", symbol)
+    valuation = get_single_symbol_info("last_valuations", symbol)
+    financials = get_single_symbol_info("last_financials", symbol)
+    dividends = get_single_symbol_info("dividends_weekly", symbol, order_by="exDividendDate", limit=1)
+    
+    return general_info, ratings, estimates, valuation, financials, dividends
 
 # -----------------------------Define containers ----------------------------------------
 header = st.container()
 prediction_container = st.container()
 explanation = st.container()
 visualization = st.container()
-
-# -----------------------------Load datas -----------------------------------------------
-
-estimates = load_estimates()
 
 # -----------------------------Define sidebar -------------------------------------------
 
@@ -116,9 +150,9 @@ if exit_app:
     p.terminate()
 
 # Page selection
-page_selection = st.sidebar.selectbox('Navigation', ['Estimates', 'Stock prices'])
+page_selection = st.sidebar.selectbox('Navigation', ['Estimates', 'Company information'])
 
-if page_selection == 'Stock prices':
+if page_selection == 'Company information':
     
     tickers = get_tickers()
     ticker_selection = st.sidebar.selectbox('Ticker selection', tickers)
@@ -127,23 +161,78 @@ if page_selection == 'Stock prices':
 # Presentation of our application
 if page_selection == 'Estimates':
 
+    # Load datas
+    global_estimates = load_estimates()
+
+    # Define containers
+    header = st.container()
+
     with header:
         st.write("""
         # Estimates vs. current price
         Difference between CAC 40 stock prices and the median target price set by analysts.
         Results are ordered from most undervalued to most overvalued companies on this criteria.
         """)
-        
-        st.dataframe(data=estimates)
 
-elif page_selection == 'Stock prices':
+        st.dataframe(data=global_estimates)
 
+elif page_selection == 'Company information':
+
+    # Load datas
     stock_prices = get_day_stock_prices(ticker_selection)
+    general_info, ratings, estimates, valuation, financials, dividends = get_all_symbol_info(ticker_selection)
+
+    # Define containers
+    header = st.container()
+    overview = st.container()
+    prices = st.container()
+    grades = st.container()
+    est = st.container()
+    val = st.container()
+    fin = st.container()
+    div = st.container()
 
     with header:
         st.write("""
-        # Stock prices
-        Select a ticker to get its stock price evolution over the day.
+        # Company information
+        Detailled informations about a selected company
         """)
-        
-        st.dataframe(data=stock_prices)
+    
+    with overview:
+        st.write("""## General information""")
+
+        st.write("Symbol: {}".format(general_info['symbol'].values[0]))
+        st.write("Company name: {}".format(general_info['shortName'].values[0]))
+        st.write("Sector: {}".format(general_info['sector'].values[0]))
+        st.write("Industry: {}".format(general_info['industry'].values[0]))
+        st.write("Country: {}".format(general_info['country'].values[0]))
+        st.write("Exchange: {}".format(general_info['exchangeName'].values[0]))
+
+    with prices:
+        st.write("""
+        ## Stock prices
+        Stock price evolution over the day.
+        """)
+
+        fig = px.line(stock_prices, x='date', y="close")
+        st.plotly_chart(fig)
+
+    with grades:
+        st.write("""## Ratings""")
+        st.dataframe(data=ratings)
+
+    with est:
+        st.write("""## Estimates""")
+        st.dataframe(data=estimates)
+
+    with val:
+        st.write("""## Valuation""")
+        st.dataframe(data=valuation)
+
+    with fin:
+        st.write("""## Financials""")
+        st.dataframe(data=financials)
+
+    with div:
+        st.write("""## Dividends""")
+        st.dataframe(data=dividends)
