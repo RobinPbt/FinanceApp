@@ -54,6 +54,8 @@ def extract_data_single(query_result, selected_items, query_time=None):
               
         # Append results for the current ticker to the final list          
         results_list.append(ticker_result)
+
+    results_list = pd.DataFrame(results_list)
     
     return results_list
 

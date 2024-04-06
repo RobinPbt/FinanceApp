@@ -17,8 +17,7 @@ import datetime as dt
 import pytz
 
 from yahooquery import Ticker
-# from symbols import CAC_40
-
+from symbols import CAC_40
 from functions import *
 
 # log = logging.getLogger(__name__)
@@ -48,7 +47,7 @@ def update_db_monthly():
                 "regularMarketSource" TEXT,
                 "exchange" TEXT,
                 "exchangeName" TEXT,
-                "exchangeDataDelayedBy" SMALLINT,
+                "exchangeDataDelayedBy" FLOAT,
                 "marketState" TEXT,
                 "quoteType" TEXT,
                 "currency" TEXT,
@@ -70,7 +69,7 @@ def update_db_monthly():
                 "regularMarketSource" TEXT,
                 "exchange" TEXT,
                 "exchangeName" TEXT,
-                "exchangeDataDelayedBy" SMALLINT,
+                "exchangeDataDelayedBy" FLOAT,
                 "marketState" TEXT,
                 "quoteType" TEXT,
                 "currency" TEXT,
@@ -87,8 +86,8 @@ def update_db_monthly():
             CREATE TABLE IF NOT EXISTS stock_information (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
-                "floatShares" BIGINT,
-                "sharesOutstanding" BIGINT,
+                "floatShares" FLOAT,
+                "sharesOutstanding" FLOAT,
                 "heldPercentInsiders" FLOAT,
                 "heldPercentInstitutions" FLOAT,
                 "lastSplitFactor" TEXT,
@@ -104,8 +103,8 @@ def update_db_monthly():
             CREATE TABLE temp_stock_info (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
-                "floatShares" BIGINT,
-                "sharesOutstanding" BIGINT,
+                "floatShares" FLOAT,
+                "sharesOutstanding" FLOAT,
                 "heldPercentInsiders" FLOAT,
                 "heldPercentInstitutions" FLOAT,
                 "lastSplitFactor" TEXT,
@@ -122,17 +121,17 @@ def update_db_monthly():
             CREATE TABLE IF NOT EXISTS ratings (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
-                "auditRisk" INT,
-                "boardRisk" INT,
-                "compensationRisk" INT,
-                "shareHolderRightsRisk" INT,
-                "overallRisk" INT,
+                "auditRisk" FLOAT,
+                "boardRisk" FLOAT,
+                "compensationRisk" FLOAT,
+                "shareHolderRightsRisk" FLOAT,
+                "overallRisk" FLOAT,
                 "totalEsg" FLOAT,
                 "environmentScore" FLOAT,
                 "socialScore" FLOAT,
                 "governanceScore" FLOAT,
-                "ratingYear" INT,
-                "ratingMonth" INT,
+                "ratingYear" FLOAT,
+                "ratingMonth" FLOAT,
                 "highestControversy" FLOAT
             );""",
     )
@@ -145,17 +144,17 @@ def update_db_monthly():
             CREATE TABLE temp_ratings (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
-                "auditRisk" INT,
-                "boardRisk" INT,
-                "compensationRisk" INT,
-                "shareHolderRightsRisk" INT,
-                "overallRisk" INT,
+                "auditRisk" FLOAT,
+                "boardRisk" FLOAT,
+                "compensationRisk" FLOAT,
+                "shareHolderRightsRisk" FLOAT,
+                "overallRisk" FLOAT,
                 "totalEsg" FLOAT,
                 "environmentScore" FLOAT,
                 "socialScore" FLOAT,
                 "governanceScore" FLOAT,
-                "ratingYear" INT,
-                "ratingMonth" INT,
+                "ratingYear" FLOAT,
+                "ratingMonth" FLOAT,
                 "highestControversy" FLOAT
             );""",
     )
@@ -164,11 +163,12 @@ def update_db_monthly():
     def download_data():
 
         # Create Ticker instance with symbols list
-        ticker = "TTE.PA"
-        ticker2 = "AI.PA"
-        ticker3 = "FR.PA"
-        list_tickers = [ticker, ticker2, ticker3]
-        tickers = Ticker(list_tickers)
+        # ticker = "TTE.PA"
+        # ticker2 = "AI.PA"
+        # ticker3 = "FR.PA"
+        # list_tickers = [ticker, ticker2, ticker3]
+        # tickers = Ticker(list_tickers)
+        tickers = Ticker(CAC_40)
 
         # Get current time (CET timezone)
         timezone = pytz.timezone('CET')

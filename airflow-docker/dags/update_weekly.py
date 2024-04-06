@@ -17,8 +17,7 @@ import datetime as dt
 import pytz
 
 from yahooquery import Ticker
-# from symbols import CAC_40
-
+from symbols import CAC_40
 from functions import *
 
 # log = logging.getLogger(__name__)
@@ -42,24 +41,24 @@ def update_db_weekly():
             CREATE TABLE IF NOT EXISTS financials_weekly (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
-                "totalCash" BIGINT,
+                "totalCash" FLOAT,
                 "totalCashPerShare" FLOAT,
-                "totalDebt" BIGINT,
+                "totalDebt" FLOAT,
                 "quickRatio" FLOAT,
                 "currentRatio" FLOAT,
                 "debtToEquity" FLOAT,
-                "totalRevenue" BIGINT,
+                "totalRevenue" FLOAT,
                 "revenuePerShare" FLOAT,
                 "revenueGrowth" FLOAT,
-                "grossProfits" BIGINT,
+                "grossProfits" FLOAT,
                 "grossMargins" FLOAT,
                 "operatingMargins" FLOAT,
-                "ebitda" BIGINT,
+                "ebitda" FLOAT,
                 "ebitdaMargins" FLOAT,
                 "earningsGrowth" FLOAT,
                 "profitMargins" FLOAT,
-                "freeCashflow" BIGINT,
-                "operatingCashflow" BIGINT,
+                "freeCashflow" FLOAT,
+                "operatingCashflow" FLOAT,
                 "returnOnAssets" FLOAT,
                 "returnOnEquity" FLOAT
             );""",
@@ -73,24 +72,24 @@ def update_db_weekly():
             CREATE TABLE last_financials (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
-                "totalCash" BIGINT,
+                "totalCash" FLOAT,
                 "totalCashPerShare" FLOAT,
-                "totalDebt" BIGINT,
+                "totalDebt" FLOAT,
                 "quickRatio" FLOAT,
                 "currentRatio" FLOAT,
                 "debtToEquity" FLOAT,
-                "totalRevenue" BIGINT,
+                "totalRevenue" FLOAT,
                 "revenuePerShare" FLOAT,
                 "revenueGrowth" FLOAT,
-                "grossProfits" BIGINT,
+                "grossProfits" FLOAT,
                 "grossMargins" FLOAT,
                 "operatingMargins" FLOAT,
-                "ebitda" BIGINT,
+                "ebitda" FLOAT,
                 "ebitdaMargins" FLOAT,
                 "earningsGrowth" FLOAT,
                 "profitMargins" FLOAT,
-                "freeCashflow" BIGINT,
-                "operatingCashflow" BIGINT,
+                "freeCashflow" FLOAT,
+                "operatingCashflow" FLOAT,
                 "returnOnAssets" FLOAT,
                 "returnOnEquity" FLOAT
             );""",
@@ -141,11 +140,12 @@ def update_db_weekly():
     def download_data():
 
         # Create Ticker instance with symbols list
-        ticker = "TTE.PA"
-        ticker2 = "AI.PA"
-        ticker3 = "FR.PA"
-        list_tickers = [ticker, ticker2, ticker3]
-        tickers = Ticker(list_tickers)
+        # ticker = "TTE.PA"
+        # ticker2 = "AI.PA"
+        # ticker3 = "FR.PA"
+        # list_tickers = [ticker, ticker2, ticker3]
+        # tickers = Ticker(list_tickers)
+        tickers = Ticker(CAC_40)
 
         # Get current time (CET timezone)
         timezone = pytz.timezone('CET')
@@ -206,6 +206,7 @@ def update_db_weekly():
 
         dividends = extract_data_multiple(query_result_list, selected_items_list, query_time=None)
         dividends['lastDividendDate'] = dividends['lastDividendDate'].apply(lambda x: pd.to_datetime(x))
+        dividends.loc[dividends['exDividendDate'].isna(), 'exDividendDate'] = dt.date(1970,1,1)
 
         # Save results in csv files
         files_dir_path = "/opt/airflow/dags/files/"

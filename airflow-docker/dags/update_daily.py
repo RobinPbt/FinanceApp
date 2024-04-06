@@ -17,8 +17,7 @@ import datetime as dt
 import pytz
 
 from yahooquery import Ticker
-# from symbols import CAC_40
-
+from symbols import CAC_40
 from functions import *
 
 # log = logging.getLogger(__name__)
@@ -46,7 +45,7 @@ def update_db_daily():
                 "high" FLOAT,
                 "low" FLOAT,
                 "close" FLOAT,
-                "volume" INT,
+                "volume" FLOAT,
                 "adjclose" FLOAT,
                 "dividends" FLOAT
             );""",
@@ -64,7 +63,7 @@ def update_db_daily():
                 "high" FLOAT,
                 "low" FLOAT,
                 "close" FLOAT,
-                "volume" INT,
+                "volume" FLOAT,
                 "adjclose" FLOAT,
                 "dividends" FLOAT
             );""",
@@ -85,7 +84,7 @@ def update_db_daily():
                 "targetMedianPrice" FLOAT,
                 "recommendationMean" FLOAT,
                 "recommendationKey" TEXT,
-                "numberOfAnalystOpinions" SMALLINT
+                "numberOfAnalystOpinions" FLOAT
             );""",
     )
 
@@ -103,7 +102,7 @@ def update_db_daily():
                 "targetMedianPrice" FLOAT,
                 "recommendationMean" FLOAT,
                 "recommendationKey" TEXT,
-                "numberOfAnalystOpinions" SMALLINT
+                "numberOfAnalystOpinions" FLOAT
             );""",
     )
 
@@ -116,7 +115,7 @@ def update_db_daily():
             CREATE TABLE IF NOT EXISTS valuations_daily (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
-                "enterpriseValue" BIGINT,
+                "enterpriseValue" FLOAT,
                 "forwardPE" FLOAT,
                 "bookValue" FLOAT,
                 "priceToBook" FLOAT,
@@ -125,7 +124,7 @@ def update_db_daily():
                 "beta" FLOAT,
                 "pegRatio" FLOAT,
                 "trailingPE" FLOAT,
-                "marketCap" BIGINT,
+                "marketCap" FLOAT,
                 "priceToSalesTrailing12Months" FLOAT
             );""",
     )
@@ -138,7 +137,7 @@ def update_db_daily():
             CREATE TABLE last_valuations (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
-                "enterpriseValue" BIGINT,
+                "enterpriseValue" FLOAT,
                 "forwardPE" FLOAT,
                 "bookValue" FLOAT,
                 "priceToBook" FLOAT,
@@ -147,7 +146,7 @@ def update_db_daily():
                 "beta" FLOAT,
                 "pegRatio" FLOAT,
                 "trailingPE" FLOAT,
-                "marketCap" BIGINT,
+                "marketCap" FLOAT,
                 "priceToSalesTrailing12Months" FLOAT
             );""",
     )
@@ -156,11 +155,12 @@ def update_db_daily():
     def download_data():
 
         # Create Ticker instance with symbols list
-        ticker = "TTE.PA"
-        ticker2 = "AI.PA"
-        ticker3 = "FR.PA"
-        list_tickers = [ticker, ticker2, ticker3]
-        tickers = Ticker(list_tickers)
+        # ticker = "TTE.PA"
+        # ticker2 = "AI.PA"
+        # ticker3 = "FR.PA"
+        # list_tickers = [ticker, ticker2, ticker3]
+        # tickers = Ticker(list_tickers)
+        tickers = Ticker(CAC_40)
 
         # Get current time (CET timezone)
         timezone = pytz.timezone('CET')
@@ -260,6 +260,13 @@ def update_db_daily():
         cur.execute(query_valuations)
         conn.commit()
 
-    [create_stock_price_daily_table, create_temp_prices_table, create_estimates_daily_table, create_last_estimates_table, create_valuations_daily_table, create_last_valuations_table] >> download_data() >> update_db()
+    [
+        create_stock_price_daily_table, 
+        create_temp_prices_table, 
+        create_estimates_daily_table, 
+        create_last_estimates_table, 
+        create_valuations_daily_table, 
+        create_last_valuations_table
+    ] >> download_data() >> update_db()
 
 dag = update_db_daily()

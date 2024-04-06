@@ -16,7 +16,8 @@ import numpy as np
 import datetime as dt
 
 from yahooquery import Ticker
-# from symbols import CAC_40
+from symbols import CAC_40
+from functions import *
 
 # log = logging.getLogger(__name__)
 # PATH_TO_PYTHON_BINARY = sys.executable
@@ -57,11 +58,12 @@ def update_db_minute():
     def download_data():
 
         # Create Ticker instance with symbols list
-        ticker = "TTE.PA"
-        ticker2 = "AI.PA"
-        ticker3 = "FR.PA"
-        list_tickers = [ticker, ticker2, ticker3]
-        tickers = Ticker(list_tickers)
+        # ticker = "TTE.PA"
+        # ticker2 = "AI.PA"
+        # ticker3 = "FR.PA"
+        # list_tickers = [ticker, ticker2, ticker3]
+        # tickers = Ticker(list_tickers)
+        tickers = Ticker(CAC_40)
 
         # Request to get last available prices
         last_prices = tickers.history(period='1d', interval='1d').reset_index()

@@ -65,8 +65,29 @@ def load_estimates():
     """
     
     query_result = con.query(query)
-    estimates = pd.DataFrame(query_result)
-    return estimates
+    global_estimates = pd.DataFrame(query_result)
+    return global_estimates
+
+# Page peers
+@st.cache_data
+def load_valuations():
+    query = """
+    SELECT
+        g."symbol", 
+        g."shortName",
+        g."sector",
+        g."industry",
+        v."priceToBook",
+        v."enterpriseToRevenue",
+        v."enterpriseToEbitda",
+        v."trailingPE"
+    FROM general_information AS g
+    LEFT JOIN last_valuations v ON g."symbol" = v."symbol"
+    """
+    
+    query_result = con.query(query)
+    global_valuations = pd.DataFrame(query_result)
+    return global_valuations
 
 # Page company information
 @st.cache_data
@@ -129,12 +150,6 @@ def get_all_symbol_info(symbol):
     
     return general_info, ratings, estimates, valuation, financials, dividends
 
-# -----------------------------Define containers ----------------------------------------
-header = st.container()
-prediction_container = st.container()
-explanation = st.container()
-visualization = st.container()
-
 # -----------------------------Define sidebar -------------------------------------------
 
 # Button to shutdown app (in development stage)
@@ -150,7 +165,7 @@ if exit_app:
     p.terminate()
 
 # Page selection
-page_selection = st.sidebar.selectbox('Navigation', ['Estimates', 'Company information'])
+page_selection = st.sidebar.selectbox('Navigation', ['Estimates', 'Company information', 'Valuations'])
 
 if page_selection == 'Company information':
     
@@ -158,7 +173,7 @@ if page_selection == 'Company information':
     ticker_selection = st.sidebar.selectbox('Ticker selection', tickers)
 
 # -----------------------------Dashboard ------------------------------------------------
-# Presentation of our application
+# Page estimates
 if page_selection == 'Estimates':
 
     # Load datas
@@ -176,6 +191,24 @@ if page_selection == 'Estimates':
 
         st.dataframe(data=global_estimates)
 
+# Page valuations
+elif page_selection == 'Valuations':
+
+    # Load datas
+    global_valuations = load_valuations()
+
+    # Define containers
+    header = st.container()
+
+    with header:
+        st.write("""
+        # Listed Peers
+        XX
+        """)
+
+        st.dataframe(data=global_valuations)
+
+# Page detailled information per ticker
 elif page_selection == 'Company information':
 
     # Load datas
