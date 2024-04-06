@@ -16,9 +16,8 @@ import pytz
 from app_functions import *
 
 st.set_page_config(
-    page_title="Home",
-    layout = "wide",
-    page_icon="👋"
+    page_title="Listed Peers",
+    layout = "wide"
 )
 
 # Create db connection
@@ -28,11 +27,27 @@ con = st.connection(
     url="postgresql+psycopg2://airflow:airflow@localhost/airflow"
 )
 
-# -----------------------------Define general functions ---------------------------------
-
-
 # -----------------------------Define caching functions ---------------------------------
 
+@st.cache_data
+def load_valuations():
+    query = """
+    SELECT
+        g."symbol", 
+        g."shortName",
+        g."sector",
+        g."industry",
+        v."priceToBook",
+        v."enterpriseToRevenue",
+        v."enterpriseToEbitda",
+        v."trailingPE"
+    FROM general_information AS g
+    LEFT JOIN last_valuations v ON g."symbol" = v."symbol"
+    """
+    
+    query_result = con.query(query)
+    global_valuations = pd.DataFrame(query_result)
+    return global_valuations
 
 # -----------------------------Define sidebar -------------------------------------------
 
@@ -50,10 +65,16 @@ if exit_app:
 
 # -----------------------------Dashboard ------------------------------------------------
 
+# Load datas
+global_valuations = load_valuations()
+
 # Define containers
 header = st.container()
 
 with header:
     st.write("""
-    # Fundamental investment strategy App - Home
+    # Listed Peers
+    XX
     """)
+
+    st.dataframe(data=global_valuations)

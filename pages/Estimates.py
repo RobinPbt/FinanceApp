@@ -16,9 +16,8 @@ import pytz
 from app_functions import *
 
 st.set_page_config(
-    page_title="Home",
-    layout = "wide",
-    page_icon="👋"
+    page_title="Estimates",
+    layout = "wide"
 )
 
 # Create db connection
@@ -28,11 +27,27 @@ con = st.connection(
     url="postgresql+psycopg2://airflow:airflow@localhost/airflow"
 )
 
-# -----------------------------Define general functions ---------------------------------
-
-
 # -----------------------------Define caching functions ---------------------------------
 
+@st.cache_data
+def load_estimates():
+    query = """
+    SELECT
+        g."symbol", g."shortName",
+        p."close" AS "lastPrice",
+        p."date" AS "dateLastPrice",
+        e."targetMedianPrice",
+        e."numberOfAnalystOpinions",
+        (e."targetMedianPrice" - p."close") AS "absoluteDiff",
+        ((e."targetMedianPrice" - p."close") / p."close") AS "relativeDiff"
+    FROM general_information AS g
+    LEFT JOIN last_stock_prices p ON g."symbol" = p."symbol"
+    LEFT JOIN last_estimates e ON g."symbol" = e."symbol";
+    """
+    
+    query_result = con.query(query)
+    global_estimates = pd.DataFrame(query_result)
+    return global_estimates
 
 # -----------------------------Define sidebar -------------------------------------------
 
@@ -50,10 +65,17 @@ if exit_app:
 
 # -----------------------------Dashboard ------------------------------------------------
 
+# Load datas
+global_estimates = load_estimates()
+
 # Define containers
 header = st.container()
 
 with header:
     st.write("""
-    # Fundamental investment strategy App - Home
+    # Estimates vs. current price
+    Difference between CAC 40 stock prices and the median target price set by analysts.
+    Results are ordered from most undervalued to most overvalued companies on this criteria.
     """)
+
+    st.dataframe(data=global_estimates)
