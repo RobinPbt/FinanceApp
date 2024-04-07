@@ -17,7 +17,6 @@ import datetime as dt
 import pytz
 
 from yahooquery import Ticker
-from symbols import CAC_40
 from functions import *
 
 # log = logging.getLogger(__name__)
@@ -140,12 +139,10 @@ def update_db_weekly():
     def download_data():
 
         # Create Ticker instance with symbols list
-        # ticker = "TTE.PA"
-        # ticker2 = "AI.PA"
-        # ticker3 = "FR.PA"
-        # list_tickers = [ticker, ticker2, ticker3]
-        # tickers = Ticker(list_tickers)
-        tickers = Ticker(CAC_40)
+        files_dir_path = "/opt/airflow/dags/files/symbol_list.csv"
+        symbol_df = pd.read_csv(files_dir_path)
+        symbol_list = list(symbol_df['symbol'])
+        tickers = Ticker(symbol_list)
 
         # Get current time (CET timezone)
         timezone = pytz.timezone('CET')
