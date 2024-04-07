@@ -30,6 +30,16 @@ con = st.connection(
 # -----------------------------Define caching functions ---------------------------------
 
 @st.cache_data
+def get_tickers():
+    query = """
+        SELECT DISTINCT(symbol) 
+        FROM stock_price_minute;
+    """
+
+    tickers_list = con.query(query)
+    return tickers_list
+
+@st.cache_data
 def get_multiples():
     query = """
     SELECT
@@ -128,6 +138,10 @@ if exit_app:
     p = psutil.Process(pid)
     p.terminate()
 
+# Ticker selection    
+tickers = get_tickers()
+ticker_selection = st.sidebar.selectbox('Ticker selection', tickers)
+
 # -----------------------------Dashboard ------------------------------------------------
 
 # Load datas
@@ -143,6 +157,8 @@ price_diff = price_differential(peers, stock_price)
 
 # Define containers
 header = st.container()
+global_view = st.container()
+detailed_view = st.container()
 
 with header:
     st.write("""
@@ -150,6 +166,46 @@ with header:
     XX
     """)
 
-    st.dataframe(data=peers)
-
+with global_view:
+    st.write("""## Global view""")
     st.dataframe(data=price_diff)
+
+with detailed_view:
+    # Load datas from current selection
+    selected_peers = peers[peers['symbol'] == ticker_selection]
+    selected_price_diff = price_diff[price_diff['symbol'] == ticker_selection]
+    
+    x_axis_peers = ['stock_price_book', 'stock_price_revenue', 'stock_price_ebitda', 'stock_price_earnings']
+    current_multiples = selected_peers[x_axis_peers]
+
+    x_axis_price = ['mean_stock_price', 'lastPrice']
+    current_price = selected_price_diff[x_axis_price]
+    current_price.columns = ['Valuation price', 'Current price']
+
+    # Display
+    st.write("""## Selected ticker detailed view""")
+    st.write("Company name: {}".format(selected_peers['shortName'].values[0]))
+    st.write("Relative difference with current price: {:.2%}".format(selected_price_diff['relative_diff'].values[0]))
+    st.write("Confidence valuation: {}".format(selected_price_diff['confidence'].values[0]))
+
+    graph_multiples, compare_graph = st.columns(2)
+
+    with graph_multiples:
+        # Plot graph with stock prices
+        fig = px.bar(
+            x=current_multiples.columns, y=current_multiples.values[0], 
+            title="Stock price per valuation method", labels={"x" : "", "y" : ""}
+        )
+        # Add a horizontal line with the mean
+        fig.add_shape(
+            type="line", line_color="red", line_width=3, opacity=1, line_dash="dot",
+            x0=0, x1=1, xref="paper", y0=current_price['Valuation price'].values[0], y1=current_price['Valuation price'].values[0], yref="y"
+        )
+        st.plotly_chart(fig)
+
+    with compare_graph:
+        fig = px.bar(
+            x=current_price.columns, y=current_price.values[0], 
+            title="Compare valuation against current price", labels={"x" : "", "y" : ""}
+        )
+        st.plotly_chart(fig)
