@@ -42,7 +42,8 @@ def load_estimates():
         ((e."targetMedianPrice" - p."close") / p."close") AS "relativeDiff"
     FROM general_information AS g
     LEFT JOIN last_stock_prices p ON g."symbol" = p."symbol"
-    LEFT JOIN last_estimates e ON g."symbol" = e."symbol";
+    LEFT JOIN last_estimates e ON g."symbol" = e."symbol"
+    ORDER BY "relativeDiff" DESC;
     """
     
     query_result = con.query(query)

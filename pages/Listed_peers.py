@@ -30,7 +30,7 @@ con = st.connection(
 # -----------------------------Define caching functions ---------------------------------
 
 @st.cache_data
-def load_valuations():
+def get_multiples():
     query = """
     SELECT
         g."symbol", 
@@ -46,8 +46,73 @@ def load_valuations():
     """
     
     query_result = con.query(query)
-    global_valuations = pd.DataFrame(query_result)
-    return global_valuations
+    multiples = pd.DataFrame(query_result)
+    return multiples
+
+@st.cache_data
+def get_last_valuations():
+    query = """
+        WITH last_stock_info 
+        AS 
+        (
+        SELECT
+            s."symbol",
+            s."date",
+            s."sharesOutstanding"
+        FROM (
+            SELECT
+                "symbol",
+                MAX("date") AS last_date
+            FROM stock_information
+            GROUP BY "symbol"
+            ) l
+        LEFT JOIN stock_information AS s ON s."symbol" = l."symbol" AND s."date" = l."last_date"
+        )
+        SELECT
+            v."symbol", 
+            v."bookValue",
+            v."enterpriseValue",
+            (v."enterpriseValue" - v."marketCap") AS "bridge_enterpriseValue_marketCap",
+            v."marketCap",
+            last_stock_info."sharesOutstanding",
+            (v."marketCap" / last_stock_info."sharesOutstanding") AS "stock_price"
+        FROM last_valuations AS v
+        LEFT JOIN last_stock_info ON last_stock_info."symbol" = v."symbol";
+    """
+
+    query_result = con.query(query)
+    last_valuations = pd.DataFrame(query_result)
+    return last_valuations
+
+@st.cache_data
+def get_financials():
+    query = """
+        SELECT
+            f."symbol", 
+            f."totalRevenue",
+            f."ebitda",
+            (f."totalRevenue" * f."profitMargins") AS "earnings"
+        FROM last_financials AS f
+    """
+
+    query_result = con.query(query)
+    financials = pd.DataFrame(query_result)
+    return financials
+
+@st.cache_data
+def get_stock_price():
+    query = """
+    SELECT
+        "symbol",
+        "close" AS "lastPrice",
+        "date" AS "dateLastPrice"
+    FROM last_stock_prices;
+    """
+    
+    query_result = con.query(query)
+    stock_price = pd.DataFrame(query_result)
+    return stock_price
+
 
 # -----------------------------Define sidebar -------------------------------------------
 
@@ -66,7 +131,15 @@ if exit_app:
 # -----------------------------Dashboard ------------------------------------------------
 
 # Load datas
-global_valuations = load_valuations()
+multiples = get_multiples()
+last_valuations = get_last_valuations()
+financials = get_financials()
+stock_price = get_stock_price()
+
+# Transform datas
+peers = peers_valuation(financials, multiples, last_valuations)
+price_diff = price_differential(peers, stock_price)
+
 
 # Define containers
 header = st.container()
@@ -77,4 +150,6 @@ with header:
     XX
     """)
 
-    st.dataframe(data=global_valuations)
+    st.dataframe(data=peers)
+
+    st.dataframe(data=price_diff)
