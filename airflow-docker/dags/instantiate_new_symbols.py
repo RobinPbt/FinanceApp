@@ -91,7 +91,8 @@ def instantiate_new_symbols():
                 "close" FLOAT,
                 "volume" FLOAT,
                 "adjclose" FLOAT,
-                "dividends" FLOAT
+                "dividends" FLOAT,
+                PRIMARY KEY ("symbol", "date")
             );""",
     )
 
@@ -139,7 +140,9 @@ def instantiate_new_symbols():
         query_prices = """
             INSERT INTO stock_price_daily
             SELECT *
-            FROM new_prices;
+            FROM new_prices
+            ON CONFLICT("symbol", "date")
+            DO NOTHING;
             DROP TABLE IF EXISTS new_prices;
         """
 

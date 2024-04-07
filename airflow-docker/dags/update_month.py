@@ -90,7 +90,8 @@ def update_db_monthly():
                 "heldPercentInsiders" FLOAT,
                 "heldPercentInstitutions" FLOAT,
                 "lastSplitFactor" TEXT,
-                "lastSplitDate" TIMESTAMP
+                "lastSplitDate" TIMESTAMP,
+                PRIMARY KEY ("symbol", "date")
             );""",
     )
 
@@ -107,7 +108,8 @@ def update_db_monthly():
                 "heldPercentInsiders" FLOAT,
                 "heldPercentInstitutions" FLOAT,
                 "lastSplitFactor" TEXT,
-                "lastSplitDate" TIMESTAMP
+                "lastSplitDate" TIMESTAMP,
+                PRIMARY KEY ("symbol", "date")
             );""",
     )
 
@@ -131,7 +133,8 @@ def update_db_monthly():
                 "governanceScore" FLOAT,
                 "ratingYear" FLOAT,
                 "ratingMonth" FLOAT,
-                "highestControversy" FLOAT
+                "highestControversy" FLOAT,
+                PRIMARY KEY ("symbol", "date")
             );""",
     )
 
@@ -154,7 +157,8 @@ def update_db_monthly():
                 "governanceScore" FLOAT,
                 "ratingYear" FLOAT,
                 "ratingMonth" FLOAT,
-                "highestControversy" FLOAT
+                "highestControversy" FLOAT,
+                PRIMARY KEY ("symbol", "date")
             );""",
     )
 
@@ -251,7 +255,7 @@ def update_db_monthly():
         conn.commit()
 
         # Insert the result of the request in the table permanent table
-        query_general_information_1 = """
+        query_general_information= """
             INSERT INTO general_information
             SELECT *
             FROM temp_general_info
@@ -269,32 +273,30 @@ def update_db_monthly():
                 "quoteType" = EXCLUDED."quoteType",
                 "currency" = EXCLUDED."currency",
                 "shortName" = EXCLUDED."shortName";
+                DROP TABLE IF EXISTS temp_general_info;
         """
 
-        query_general_information_2 = """DROP TABLE IF EXISTS temp_general_info;"""
-
-        query_stock_information_1 = """
+        query_stock_information = """
             INSERT INTO stock_information
             SELECT *
-            FROM temp_stock_info;
+            FROM temp_stock_info
+            ON CONFLICT("symbol", "date")
+            DO NOTHING;
+            DROP TABLE IF EXISTS temp_stock_info;
         """
 
-        query_stock_information_2 = """DROP TABLE IF EXISTS temp_stock_info;"""
-
-        query_ratings_1 = """
+        query_ratings = """
             INSERT INTO ratings
             SELECT *
-            FROM temp_ratings;
+            FROM temp_ratings
+            ON CONFLICT("symbol", "date")
+            DO NOTHING;
+            DROP TABLE IF EXISTS temp_ratings;
         """
 
-        query_ratings_2 = """DROP TABLE IF EXISTS temp_ratings;"""
-
-        cur.execute(query_general_information_1)
-        cur.execute(query_general_information_2)
-        cur.execute(query_stock_information_1)
-        cur.execute(query_stock_information_2)
-        cur.execute(query_ratings_1)
-        cur.execute(query_ratings_2)
+        cur.execute(query_general_information)
+        cur.execute(query_stock_information)
+        cur.execute(query_ratings)
         conn.commit()
 
     [create_general_information_table, create_temp_general_info_table, create_stock_information_table, create_temp_stock_info_table, create_ratings_table, create_temp_ratings_table] >> download_data() >> update_db()

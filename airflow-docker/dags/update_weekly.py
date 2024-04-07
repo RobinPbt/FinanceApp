@@ -59,7 +59,8 @@ def update_db_weekly():
                 "freeCashflow" FLOAT,
                 "operatingCashflow" FLOAT,
                 "returnOnAssets" FLOAT,
-                "returnOnEquity" FLOAT
+                "returnOnEquity" FLOAT,
+                PRIMARY KEY ("symbol", "date")
             );""",
     )
 
@@ -90,7 +91,8 @@ def update_db_weekly():
                 "freeCashflow" FLOAT,
                 "operatingCashflow" FLOAT,
                 "returnOnAssets" FLOAT,
-                "returnOnEquity" FLOAT
+                "returnOnEquity" FLOAT,
+                PRIMARY KEY ("symbol", "date")
             );""",
     )
 
@@ -245,7 +247,9 @@ def update_db_weekly():
         query_financials = """
             INSERT INTO financials_weekly
             SELECT *
-            FROM last_financials;
+            FROM last_financials
+            ON CONFLICT("symbol", "date")
+            DO NOTHING;
         """
 
         query_dividends = """

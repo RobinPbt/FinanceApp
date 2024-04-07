@@ -37,7 +37,8 @@ def update_db_minute():
             CREATE TABLE IF NOT EXISTS stock_price_minute (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
-                "close" FLOAT
+                "close" FLOAT,
+                PRIMARY KEY ("symbol", "date")
             );""",
     )
 
@@ -49,7 +50,8 @@ def update_db_minute():
             CREATE TABLE last_stock_prices (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
-                "close" FLOAT
+                "close" FLOAT,
+                PRIMARY KEY ("symbol", "date")
             );""",
     )
 
@@ -98,6 +100,8 @@ def update_db_minute():
             INSERT INTO stock_price_minute
             SELECT *
             FROM last_stock_prices
+            ON CONFLICT("symbol", "date")
+            DO NOTHING;
         """
 
         try:

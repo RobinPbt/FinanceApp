@@ -46,7 +46,8 @@ def update_db_daily():
                 "close" FLOAT,
                 "volume" FLOAT,
                 "adjclose" FLOAT,
-                "dividends" FLOAT
+                "dividends" FLOAT,
+                PRIMARY KEY ("symbol", "date")
             );""",
     )
 
@@ -64,7 +65,8 @@ def update_db_daily():
                 "close" FLOAT,
                 "volume" FLOAT,
                 "adjclose" FLOAT,
-                "dividends" FLOAT
+                "dividends" FLOAT,
+                PRIMARY KEY ("symbol", "date")
             );""",
     )
 
@@ -83,7 +85,8 @@ def update_db_daily():
                 "targetMedianPrice" FLOAT,
                 "recommendationMean" FLOAT,
                 "recommendationKey" TEXT,
-                "numberOfAnalystOpinions" FLOAT
+                "numberOfAnalystOpinions" FLOAT,
+                PRIMARY KEY ("symbol", "date")
             );""",
     )
 
@@ -101,7 +104,8 @@ def update_db_daily():
                 "targetMedianPrice" FLOAT,
                 "recommendationMean" FLOAT,
                 "recommendationKey" TEXT,
-                "numberOfAnalystOpinions" FLOAT
+                "numberOfAnalystOpinions" FLOAT,
+                PRIMARY KEY ("symbol", "date")
             );""",
     )
 
@@ -124,7 +128,8 @@ def update_db_daily():
                 "pegRatio" FLOAT,
                 "trailingPE" FLOAT,
                 "marketCap" FLOAT,
-                "priceToSalesTrailing12Months" FLOAT
+                "priceToSalesTrailing12Months" FLOAT,
+                PRIMARY KEY ("symbol", "date")
             );""",
     )
 
@@ -146,7 +151,8 @@ def update_db_daily():
                 "pegRatio" FLOAT,
                 "trailingPE" FLOAT,
                 "marketCap" FLOAT,
-                "priceToSalesTrailing12Months" FLOAT
+                "priceToSalesTrailing12Months" FLOAT,
+                PRIMARY KEY ("symbol", "date")
             );""",
     )
 
@@ -236,20 +242,26 @@ def update_db_daily():
         query_prices = """
             INSERT INTO stock_price_daily
             SELECT *
-            FROM temp_prices;
+            FROM temp_prices
+            ON CONFLICT("symbol", "date")
+            DO NOTHING;
             DROP TABLE IF EXISTS temp_prices;
         """
 
         query_estimates = """
             INSERT INTO estimates_daily
             SELECT *
-            FROM last_estimates;
+            FROM last_estimates
+            ON CONFLICT("symbol", "date")
+            DO NOTHING;
         """
 
         query_valuations = """
             INSERT INTO valuations_daily
             SELECT *
-            FROM last_valuations;
+            FROM last_valuations
+            ON CONFLICT("symbol", "date")
+            DO NOTHING;
         """
 
         cur.execute(query_prices)
