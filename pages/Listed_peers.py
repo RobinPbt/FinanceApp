@@ -33,95 +33,40 @@ con = st.connection(
 def get_tickers():
     query = """
         SELECT DISTINCT(symbol) 
-        FROM stock_price_minute;
+        FROM peers_valuation;
     """
 
     tickers_list = con.query(query)
     return tickers_list
 
 @st.cache_data
-def get_multiples():
+def get_peers():
     query = """
-    SELECT
-        g."symbol", 
-        g."shortName",
-        g."sector",
-        g."industry",
-        v."priceToBook",
-        v."enterpriseToRevenue",
-        v."enterpriseToEbitda",
-        v."trailingPE"
-    FROM general_information AS g
-    LEFT JOIN last_valuations v ON g."symbol" = v."symbol"
-    """
-    
-    query_result = con.query(query)
-    multiples = pd.DataFrame(query_result)
-    return multiples
-
-@st.cache_data
-def get_last_valuations():
-    query = """
-        WITH last_stock_info 
+        WITH last_peers 
         AS 
         (
-        SELECT
-            s."symbol",
-            s."date",
-            s."sharesOutstanding"
+        SELECT p.*
         FROM (
             SELECT
                 "symbol",
                 MAX("date") AS last_date
-            FROM stock_information
+            FROM peers_valuation
             GROUP BY "symbol"
             ) l
-        LEFT JOIN stock_information AS s ON s."symbol" = l."symbol" AND s."date" = l."last_date"
+        LEFT JOIN peers_valuation AS p ON p."symbol" = l."symbol" AND p."date" = l."last_date"
         )
         SELECT
-            v."symbol", 
-            v."bookValue",
-            v."enterpriseValue",
-            (v."enterpriseValue" - v."marketCap") AS "bridge_enterpriseValue_marketCap",
-            v."marketCap",
-            last_stock_info."sharesOutstanding",
-            (v."marketCap" / last_stock_info."sharesOutstanding") AS "stock_price"
-        FROM last_valuations AS v
-        LEFT JOIN last_stock_info ON last_stock_info."symbol" = v."symbol";
-    """
-
-    query_result = con.query(query)
-    last_valuations = pd.DataFrame(query_result)
-    return last_valuations
-
-@st.cache_data
-def get_financials():
-    query = """
-        SELECT
-            f."symbol", 
-            f."totalRevenue",
-            f."ebitda",
-            (f."totalRevenue" * f."profitMargins") AS "earnings"
-        FROM last_financials AS f
-    """
-
-    query_result = con.query(query)
-    financials = pd.DataFrame(query_result)
-    return financials
-
-@st.cache_data
-def get_stock_price():
-    query = """
-    SELECT
-        "symbol",
-        "close" AS "lastPrice",
-        "date" AS "dateLastPrice"
-    FROM last_stock_prices;
+            last_peers.*, 
+            g."shortName",
+            s."close" AS "lastPrice"
+        FROM last_peers
+        LEFT JOIN general_information AS g ON last_peers."symbol" = g."symbol"
+        LEFT JOIN last_stock_prices AS s ON last_peers."symbol" = s."symbol" AND last_peers."date" = s."date";
     """
     
     query_result = con.query(query)
-    stock_price = pd.DataFrame(query_result)
-    return stock_price
+    peers_valuation = pd.DataFrame(query_result)
+    return peers_valuation
 
 
 # -----------------------------Define sidebar -------------------------------------------
@@ -145,15 +90,7 @@ ticker_selection = st.sidebar.selectbox('Ticker selection', tickers)
 # -----------------------------Dashboard ------------------------------------------------
 
 # Load datas
-multiples = get_multiples()
-last_valuations = get_last_valuations()
-financials = get_financials()
-stock_price = get_stock_price()
-
-# Transform datas
-peers = peers_valuation(financials, multiples, last_valuations)
-price_diff = price_differential(peers, stock_price)
-
+peers = get_peers()
 
 # Define containers
 header = st.container()
@@ -168,25 +105,25 @@ with header:
 
 with global_view:
     st.write("""## Global view""")
-    st.dataframe(data=price_diff)
+
+    st.dataframe(data=peers[['symbol', 'lastPrice', 'shortName', 'date', 'PeersMeanStockPrice', 'PeersRelativeStdStockPrice', 'PeersAbsoluteDiff', 'PeersRelativeDiff', 'PeersConfidence']])
 
 with detailed_view:
     # Load datas from current selection
     selected_peers = peers[peers['symbol'] == ticker_selection]
-    selected_price_diff = price_diff[price_diff['symbol'] == ticker_selection]
     
-    x_axis_peers = ['stock_price_book', 'stock_price_revenue', 'stock_price_ebitda', 'stock_price_earnings']
+    x_axis_peers = ['stockPriceBook', 'stockPriceRevenue', 'stockPriceEbitda', 'stockPriceEarnings']
     current_multiples = selected_peers[x_axis_peers]
 
-    x_axis_price = ['mean_stock_price', 'lastPrice']
-    current_price = selected_price_diff[x_axis_price]
+    x_axis_price = ['PeersMeanStockPrice', 'lastPrice']
+    current_price = selected_peers[x_axis_price]
     current_price.columns = ['Valuation price', 'Current price']
 
     # Display
     st.write("""## Selected ticker detailed view""")
     st.write("Company name: {}".format(selected_peers['shortName'].values[0]))
-    st.write("Relative difference with current price: {:.2%}".format(selected_price_diff['relative_diff'].values[0]))
-    st.write("Confidence valuation: {}".format(selected_price_diff['confidence'].values[0]))
+    st.write("Relative difference with current price: {:.2%}".format(selected_peers['PeersRelativeDiff'].values[0]))
+    st.write("Confidence valuation: {}".format(selected_peers['PeersConfidence'].values[0]))
 
     graph_multiples, compare_graph = st.columns(2)
 

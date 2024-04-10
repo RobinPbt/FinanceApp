@@ -139,7 +139,7 @@ general_info, ratings, estimates, valuation, financials, dividends = get_all_sym
 # Define containers
 header = st.container()
 overview = st.container()
-prices = st.container()
+# prices = st.container()
 grades = st.container()
 est = st.container()
 val = st.container()
@@ -153,23 +153,33 @@ with header:
     """)
 
 with overview:
-    st.write("""## General information""")
+    
+    col_1, col_2 = st.columns([1, 2])
 
-    st.write("Symbol: {}".format(general_info['symbol'].values[0]))
-    st.write("Company name: {}".format(general_info['shortName'].values[0]))
-    st.write("Sector: {}".format(general_info['sector'].values[0]))
-    st.write("Industry: {}".format(general_info['industry'].values[0]))
-    st.write("Country: {}".format(general_info['country'].values[0]))
-    st.write("Exchange: {}".format(general_info['exchangeName'].values[0]))
+    with col_1:
+        st.write("""## General information""")
+        st.write("")
+        st.write("Symbol: {}".format(general_info['symbol'].values[0]))
+        st.write("")
+        st.write("Company name: {}".format(general_info['shortName'].values[0]))
+        st.write("")
+        st.write("Sector: {}".format(general_info['sector'].values[0]))
+        st.write("")
+        st.write("Industry: {}".format(general_info['industry'].values[0]))
+        st.write("")
+        st.write("Country: {}".format(general_info['country'].values[0]))
+        st.write("")
+        st.write("Exchange: {}".format(general_info['exchangeName'].values[0]))
 
-with prices:
-    st.write("""
-    ## Stock prices
-    Stock price evolution over the day.
-    """)
+# with prices:
+    with col_2:
+        st.write("""
+        ## Stock prices
+        Stock price evolution over the day.
+        """)
 
-    fig = px.line(stock_prices, x='date', y="close")
-    st.plotly_chart(fig)
+        fig = px.line(stock_prices, x='date', y="close")
+        st.plotly_chart(fig)
 
 with grades:
     st.write("""## Ratings""")

@@ -25,7 +25,7 @@ from functions import *
 
 @dag(
     dag_id="update_db_daily",
-    schedule_interval="0 18 * * 1-5", # Once a day (18h) after market closing on market opening days (monday to friday)
+    schedule_interval="0 16 * * 1-5", # Once a day (18h) after market closing on market opening days (monday to friday)
     start_date=pendulum.datetime(2024, 1, 1, tz="UTC"),
     catchup=False,
 )

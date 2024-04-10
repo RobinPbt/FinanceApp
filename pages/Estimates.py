@@ -36,14 +36,16 @@ def load_estimates():
         g."symbol", g."shortName",
         p."close" AS "lastPrice",
         p."date" AS "dateLastPrice",
-        e."targetMedianPrice",
-        e."numberOfAnalystOpinions",
-        (e."targetMedianPrice" - p."close") AS "absoluteDiff",
-        ((e."targetMedianPrice" - p."close") / p."close") AS "relativeDiff"
+        le."targetMedianPrice",
+        le."numberOfAnalystOpinions",
+        ef."EstimatesAbsoluteDiff",
+        ef."EstimatesRelativeDiff",
+        ef."EstimatesConfidence"
     FROM general_information AS g
     LEFT JOIN last_stock_prices p ON g."symbol" = p."symbol"
-    LEFT JOIN last_estimates e ON g."symbol" = e."symbol"
-    ORDER BY "relativeDiff" DESC;
+    LEFT JOIN last_estimates le ON g."symbol" = le."symbol"
+    LEFT JOIN estimates_diff ef ON g."symbol" = ef."symbol"
+    ORDER BY "EstimatesRelativeDiff" DESC;
     """
     
     query_result = con.query(query)

@@ -10,6 +10,7 @@ from airflow.decorators import dag, task
 from airflow.operators.python import ExternalPythonOperator, PythonOperator, PythonVirtualenvOperator, is_venv_installed
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 import pandas as pd
 import numpy as np
@@ -24,7 +25,7 @@ from functions import *
 
 @dag(
     dag_id="update_db_minute",
-    schedule_interval="*/5 8-18 * * 1-5", # Run on french market opening hours (monday to friday 9-17 + 1 hour extra before and after)
+    schedule_interval="*/5 7-16 * * 1-5", # Run on french market opening hours (monday to friday 9-17 + 1 hour extra before and after)
     start_date=pendulum.datetime(2024, 1, 1, tz="UTC"),
     catchup=False,
 )
@@ -113,7 +114,12 @@ def update_db_minute():
             return 0
         except Exception as e:
             return 1
+        
+    trigger_compute_metrics = TriggerDagRunOperator(
+        task_id="trigger_compute_metrics",
+        trigger_dag_id="compute_metrics",
+    )
 
-    [create_stock_price_minute_table, create_last_stock_prices_table] >> download_data() >> update_db()
+    [create_stock_price_minute_table, create_last_stock_prices_table] >> download_data() >> update_db() >> trigger_compute_metrics
 
 dag = update_db_minute()
