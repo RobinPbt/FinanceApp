@@ -1,5 +1,16 @@
 import pandas as pd
 import numpy as np
+import time
+import asyncio
+
+from functools import wraps
+
+from langchain.chat_models import ChatOpenAI
+from langchain.tools import DuckDuckGoSearchRun, WikipediaQueryRun
+from langchain_community.utilities import WikipediaAPIWrapper
+from langchain.prompts import PromptTemplate
+from langchain.memory import ConversationBufferMemory
+from langchain.chains import LLMChain
 
 # ----------------------------- Valuation functions ---------------------------------
 
@@ -124,3 +135,45 @@ def price_differential(peers, stock_price):
     differential_df = differential_df.sort_values(by='relative_diff', ascending=False)
     
     return differential_df
+
+# ----------------------------- LLM functions ---------------------------------
+
+def retry(max_attempts=3, delay_seconds=2, check_return_value=False):
+    """
+    A decorator for retrying a function if it raises an exception or returns a falsy value (if check_return_value is True).
+
+    Args:
+        max_attempts (int): Maximum number of attempts.
+        delay_seconds (int): Delay between attempts in seconds.
+        check_return_value (bool): If True, also retry if the return value is falsy.
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            attempts = 0
+            while attempts < max_attempts:
+                try:
+                    result = func(*args, **kwargs)
+                    if not check_return_value or result:
+                        return result
+                    else:
+                        raise ValueError("Function returned a falsy value.")
+                except Exception as e:
+                    print(f"Attempt {attempts+1} failed with error: {e}")
+                    attempts += 1
+                    if attempts < max_attempts:
+                        print(f"Retrying in {delay_seconds} seconds...")
+                    time.sleep(delay_seconds)
+            raise Exception(f"All {max_attempts} attempts failed.")
+        return wrapper
+    return decorator
+
+@retry(max_attempts=5, delay_seconds=2, check_return_value=True)
+def fetch_wikipedia_data(company_name):
+    wikipedia = WikipediaAPIWrapper()
+    return wikipedia.run(company_name)
+
+@retry(max_attempts=5, delay_seconds=2, check_return_value=True)
+def fetch_web_search_results(company_name):
+    search = DuckDuckGoSearchRun()
+    return search.run(company_name)
