@@ -308,12 +308,17 @@ def compute_metrics():
         cur.execute(query_peers)
         conn.commit()
 
+    trigger_synthetize_metrics = TriggerDagRunOperator(
+        task_id="trigger_synthetize_metrics",
+        trigger_dag_id="synthetize_metrics",
+    )
+
     [
         create_estimates_diff_table, 
         create_estimates_diff_temp_table,
         create_mean_sector_multiples_table,
         create_peers_valuation_table,
         create_peers_valuation_temp_table
-    ] >> download_data() >> update_db()
+    ] >> download_data() >> update_db() >> trigger_synthetize_metrics
 
 dag = compute_metrics()
