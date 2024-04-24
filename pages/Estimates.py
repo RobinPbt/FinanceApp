@@ -32,20 +32,37 @@ con = st.connection(
 @st.cache_data
 def load_estimates():
     query = """
-    SELECT
-        g."symbol", g."shortName",
-        p."close" AS "lastPrice",
-        p."date" AS "dateLastPrice",
-        le."targetMedianPrice",
-        le."numberOfAnalystOpinions",
-        ef."EstimatesAbsoluteDiff",
-        ef."EstimatesRelativeDiff",
-        ef."EstimatesConfidence"
-    FROM general_information AS g
-    LEFT JOIN last_stock_prices p ON g."symbol" = p."symbol"
-    LEFT JOIN last_estimates le ON g."symbol" = le."symbol"
-    LEFT JOIN estimates_diff ef ON g."symbol" = ef."symbol"
-    ORDER BY "EstimatesRelativeDiff" DESC;
+        WITH last_estimates_diff 
+        AS 
+        (
+        SELECT
+            s."symbol",
+            s."EstimatesAbsoluteDiff",
+            s."EstimatesRelativeDiff",
+            s."EstimatesConfidence"
+        FROM (
+            SELECT
+                "symbol",
+                MAX("date") AS last_date
+            FROM estimates_diff
+            GROUP BY "symbol"
+            ) l
+        LEFT JOIN estimates_diff AS s ON s."symbol" = l."symbol" AND s."date" = l."last_date"
+        )
+        SELECT
+            g."symbol", g."shortName",
+            p."close" AS "lastPrice",
+            p."date" AS "dateLastPrice",
+            le."targetMedianPrice",
+            le."numberOfAnalystOpinions",
+            ef."EstimatesAbsoluteDiff",
+            ef."EstimatesRelativeDiff",
+            ef."EstimatesConfidence"
+        FROM general_information AS g
+        LEFT JOIN last_stock_prices p ON g."symbol" = p."symbol"
+        LEFT JOIN last_estimates le ON g."symbol" = le."symbol"
+        LEFT JOIN last_estimates_diff ef ON g."symbol" = ef."symbol"
+        ORDER BY "EstimatesRelativeDiff" DESC;
     """
     
     query_result = con.query(query)
