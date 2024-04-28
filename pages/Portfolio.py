@@ -68,19 +68,7 @@ def get_expected_returns():
 
 # -----------------------------Define sidebar -------------------------------------------
 
-# Button to shutdown app (in development stage)
-exit_app = st.sidebar.button("Shut Down")
-if exit_app:
-    # Give a bit of delay for user experience
-    time.sleep(5)
-    # Close streamlit browser tab
-    keyboard.press_and_release('ctrl+w')
-    # Terminate streamlit python process
-    pid = os.getpid()
-    p = psutil.Process(pid)
-    p.terminate()
-
-target_return = st.sidebar.slider(label="Efficient portfolio target return", min_value=0.01, max_value=1.0, value=0.05, step=0.01)
+target_return = st.sidebar.slider(label="Efficient portfolio target return", min_value=0.01, max_value=1.0, value=0.6, step=0.01)
 
 # -----------------------------Dashboard ------------------------------------------------
 
@@ -104,38 +92,51 @@ daily_stock_prices = daily_stock_prices.pivot(index='symbol', columns='date', va
 
 # Create a portfolio and computing optimal allocations
 my_ptf = PortfolioAllocation(daily_stock_prices, expected_returns=expected_returns)
-my_ptf.compute_GMVP_weights(display_results=False)
-my_ptf.compute_efficient_portfolio_weights(target_return, display_results=False)
+my_ptf.compute_GMVP_weights(display_results=False, only_positive=True)
+my_ptf.compute_efficient_portfolio_weights(target_return, display_results=False, only_positive=True)
 efficient_portfolio_weights, GMVP_weights = my_ptf.return_weights()
+efficient_portfolio_weights = efficient_portfolio_weights[efficient_portfolio_weights != 0]
+GMVP_weights = GMVP_weights[GMVP_weights != 0]
 
 # Define containers
 header = st.container()
-global_view = st.container()
 weights = st.container()
 
 with header:
     st.write("""
     # Portfolio allocation
-    XX
+    [Beta version with dirty computations]
+    The objective of this module is to create a portfolio allocation optimizing the risk/return couple by using Markowitz efficient frontier with the following inputs:
+    - The expected risk is the variance of historical returns for each stock over the preceding year
+    - The expected returns are the percentages of under/over valuation given by the fundamental valuation performed in other modules
     """)
 
-with global_view:   
+GMVP_col, efficient_col = st.columns(2)
 
-    # Display
+with GMVP_col:   
+
+    # Performance
     st.write("""## GMVP""")
     st.write("Expected return GMVP : {:.6f}".format(my_ptf.expected_return_GMVP))
     st.write("Expected variance GMVP : {:.6f}".format(my_ptf.expected_variance_GMVP))
     st.write("Expected volatility GMVP : {:.6f}".format(np.sqrt(my_ptf.expected_variance_GMVP)))
 
+    # Weights pie chart
+    fig = px.pie(values=GMVP_weights.values, names=GMVP_weights.index, title='GMVP weights')
+    fig.update_traces(textposition='inside')
+    fig.update_layout(uniformtext_minsize=12, uniformtext_mode='hide')
+    st.plotly_chart(fig)
+    
+with efficient_col:   
+    
+    # Performance
     st.write("""## Efficient portfolio""")
     st.write("Expected return efficient portfolio : {:.6f}".format(my_ptf.expected_return_efficient_portfolio))
     st.write("Expected variance efficient portfolio : {:.6f}".format(my_ptf.expected_variance_efficient_portfolio))
     st.write("Expected volatility efficient portfolio : {:.6f}".format(np.sqrt(my_ptf.expected_variance_efficient_portfolio)))
 
-with weights:
-
-    st.write("""## GMVP weights""")
-    st.dataframe(data=GMVP_weights)
-
-    st.write("""## Efficient portfolio weights""")
-    st.dataframe(data=efficient_portfolio_weights)
+    # Weights pie chart
+    fig = px.pie(values=efficient_portfolio_weights.values, names=efficient_portfolio_weights.index, title='Efficient portfolio weights')
+    fig.update_traces(textposition='inside')
+    fig.update_layout(uniformtext_minsize=12, uniformtext_mode='hide')
+    st.plotly_chart(fig)

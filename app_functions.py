@@ -230,6 +230,19 @@ def expected_variance(weights_vector, covariance_matrix):
     
     return expected_variance
 
+def dirty_rebase_100(weights_vector):
+    """Delete negative weights and rebase to 100%"""
+    
+    rebased_weights_vector = weights_vector.copy()
+
+    rebased_weights_vector[rebased_weights_vector < 0] = 0
+    new_total = rebased_weights_vector.sum()
+    f = lambda x: x / new_total
+    rebased_weights_vector = f(rebased_weights_vector)
+
+    return rebased_weights_vector
+
+
 class PortfolioAllocation():
     """
     Class allowing to compute best allocations of investments (weights) in a panel of stocks to optmize risk/return couple. 
@@ -266,15 +279,20 @@ class PortfolioAllocation():
         inv_a = np.linalg.inv(a)
         self.transfo_matrix = self.inv_covariance_matrix @ self.returns_unit.T @ inv_a
         
-    def compute_GMVP_weights(self, display_results=True):
+    def compute_GMVP_weights(self, display_results=True, only_positive=True):
         """
         Compute GMVP (Global minimum variance portfolio) weights allocation.
         
         args:
         - display_results (bool): decide to display or not expected return, variance and volatility
+        - only_positive (bool): if True add a positive constraint for weights (dirty computation to be improved)
         """
     
         self.GMVP_weights = (self.inv_covariance_matrix @ self.unit_vector) / (self.unit_vector.T @ self.inv_covariance_matrix @ self.unit_vector)
+        # Delete negative value and rebase to 100%
+        if only_positive:
+            self.GMVP_weights = dirty_rebase_100(self.GMVP_weights)
+        
         self.expected_return_GMVP = expected_return(self.GMVP_weights, self.returns_vector)
         self.expected_variance_GMVP = expected_variance(self.GMVP_weights, self.covariance_matrix)
 
@@ -283,15 +301,20 @@ class PortfolioAllocation():
             print("Expected variance GMVP : {:.6f}".format(self.expected_variance_GMVP))
             print("Expected volatility GMVP : {:.6f}".format(np.sqrt(self.expected_variance_GMVP)))
         
-    def compute_efficient_portfolio_weights(self, target_return, display_results=True):
+    def compute_efficient_portfolio_weights(self, target_return, display_results=True, only_positive=True):
         """
         Compute portfolio weights allocation which minimizes variance for a given target return.
         
         args:
         - display_results (bool): decide to display or not expected return, variance and volatility
+        - only_positive (bool): if True add a positive constraint for weights (dirty computation to be improved)
         """
 
         self.efficient_portfolio_weights = self.transfo_matrix @ np.array([target_return, 1]).reshape(-1, 1)
+        # Delete negative value and rebase to 100%
+        if only_positive:
+            self.efficient_portfolio_weights = dirty_rebase_100(self.efficient_portfolio_weights)
+        
         self.expected_return_efficient_portfolio = expected_return(self.efficient_portfolio_weights, self.returns_vector)
         self.expected_variance_efficient_portfolio = expected_variance(self.efficient_portfolio_weights, self.covariance_matrix)
         

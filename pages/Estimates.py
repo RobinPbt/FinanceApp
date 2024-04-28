@@ -30,6 +30,19 @@ con = st.connection(
 # -----------------------------Define caching functions ---------------------------------
 
 @st.cache_data
+def get_tickers_names():
+    query = """
+        SELECT 
+            DISTINCT(p.symbol),
+            g."shortName"
+        FROM general_information p
+        LEFT JOIN general_information g ON p.symbol = g.symbol;
+    """
+
+    tickers_list = con.query(query)
+    return tickers_list
+
+@st.cache_data
 def load_estimates():
     query = """
         WITH last_estimates_diff 
@@ -53,8 +66,11 @@ def load_estimates():
             g."symbol", g."shortName",
             p."close" AS "lastPrice",
             p."date" AS "dateLastPrice",
-            le."targetMedianPrice",
             le."numberOfAnalystOpinions",
+            le."targetLowPrice",
+            le."targetMeanPrice",
+            le."targetMedianPrice",
+            le."targetHighPrice",
             ef."EstimatesAbsoluteDiff",
             ef."EstimatesRelativeDiff",
             ef."EstimatesConfidence"
@@ -71,17 +87,15 @@ def load_estimates():
 
 # -----------------------------Define sidebar -------------------------------------------
 
-# Button to shutdown app (in development stage)
-exit_app = st.sidebar.button("Shut Down")
-if exit_app:
-    # Give a bit of delay for user experience
-    time.sleep(5)
-    # Close streamlit browser tab
-    keyboard.press_and_release('ctrl+w')
-    # Terminate streamlit python process
-    pid = os.getpid()
-    p = psutil.Process(pid)
-    p.terminate()
+# Section selection
+section_selection = st.sidebar.selectbox('Section selection', ["Global view", "Individual ticker view"])
+
+# Ticker selection    
+tickers_names = get_tickers_names()
+company_names = tickers_names["shortName"]
+if section_selection == "Individual ticker view":
+    company_selection = st.sidebar.selectbox('Company selection', company_names)
+    ticker_selection = tickers_names[tickers_names["shortName"] == company_selection]["symbol"].values[0]
 
 # -----------------------------Dashboard ------------------------------------------------
 
@@ -90,12 +104,106 @@ global_estimates = load_estimates()
 
 # Define containers
 header = st.container()
+global_view = st.container()
+detailed_view = st.container()
 
 with header:
-    st.write("""
-    # Estimates vs. current price
-    Difference between CAC 40 stock prices and the median target price set by analysts.
-    Results are ordered from most undervalued to most overvalued companies on this criteria.
-    """)
 
-    st.dataframe(data=global_estimates)
+    if section_selection == "Global view":
+        header_text = """
+        # Estimates
+        Difference between stock prices and the median target price set by analysts.
+        """
+    else:
+         header_text = """
+        # Estimates
+        """
+    
+    st.write(header_text)
+
+if section_selection == "Global view":
+    with global_view:
+        st.write("""## Global view""")
+        all_estimates_section = st.container()
+        top_10_section = st.container()
+        bottom_10_section = st.container()
+        
+        with all_estimates_section:
+            # show_estimates = st.checkbox("Show all estimates")
+
+            # if show_estimates:
+            with st.expander("Show all estimates"):
+                st.dataframe(data=global_estimates[["shortName", "lastPrice", "targetMedianPrice", "EstimatesAbsoluteDiff", "EstimatesRelativeDiff", "EstimatesConfidence"]])
+
+        with top_10_section:
+            top_10 = global_estimates[["shortName", "EstimatesRelativeDiff"]].dropna(subset="EstimatesRelativeDiff").sort_values(by=["EstimatesRelativeDiff"], ascending=False).head(10)
+
+            # Plot chart with top 10 undervalued stocks
+            fig = px.bar(
+                data_frame=top_10,
+                x="shortName", 
+                y="EstimatesRelativeDiff", 
+                title="Top 10 undervalued stocks",
+                labels={"shortName" : "", "EstimatesRelativeDiff" : "Percentage (+)under/(-)over valuation"}
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+        with bottom_10_section:
+            bottom_10 = global_estimates[["shortName", "EstimatesRelativeDiff"]].dropna(subset="EstimatesRelativeDiff").sort_values(by=["EstimatesRelativeDiff"], ascending=True).head(10)
+
+            # Plot chart with top 10 undervalued stocks
+            fig = px.bar(
+                data_frame=bottom_10,
+                x="shortName", 
+                y="EstimatesRelativeDiff", 
+                title="Top 10 overvalued stocks",
+                labels={"shortName" : "", "EstimatesRelativeDiff" : "Percentage (+)under/(-)over valuation"}
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+elif section_selection == "Individual ticker view":
+    with detailed_view:
+        
+        # Load datas from current selection
+        selected_estimates = global_estimates[global_estimates['symbol'] == ticker_selection]
+
+        x_axis_price = ['targetMedianPrice', 'lastPrice']
+        current_price = selected_estimates[x_axis_price]
+        current_price.columns = ['Selected estimates price', 'Current price']
+
+        x_axis_estimates = ["targetLowPrice", "targetMeanPrice", "targetMedianPrice", "targetHighPrice"]
+        current_estimates = selected_estimates[x_axis_estimates]
+
+        # Display
+        st.write("""## Selected company detailed view""")
+
+        detailed_view_col1, detailed_view_col2, detailed_view_col3 = st.columns(3)
+
+        with detailed_view_col1:
+            st.write("Company name: {}".format(selected_estimates['shortName'].values[0]))
+        with detailed_view_col2: 
+            st.write("Relative difference with current price: {:.2%}".format(selected_estimates['EstimatesRelativeDiff'].values[0]))
+        with detailed_view_col3:
+            st.write("Confidence estimates: {}".format(selected_estimates['EstimatesConfidence'].values[0]))
+
+        graph_estimates, compare_graph = st.columns(2)
+
+        with graph_estimates:
+           fig = px.bar(
+                x=current_estimates.values[0], 
+                y=current_estimates.columns, 
+                title="Estimates distribution", 
+                labels={"x" : "", "y" : ""},
+            )
+           st.plotly_chart(fig)        
+        
+        with compare_graph:
+            fig = px.bar(
+                x=current_price.columns, 
+                y=current_price.values[0], 
+                title="Compare valuation against current price", 
+                labels={"x" : "", "y" : ""}
+            )
+            st.plotly_chart(fig)
