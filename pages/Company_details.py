@@ -108,7 +108,7 @@ def get_tickers_names():
     return tickers_list
 
 @st.cache_data
-def get_day_stock_prices(symbol):
+def get_intraday_stock_prices(symbol):
     
     # Get current day of week
     timezone = pytz.timezone('CET')
@@ -156,6 +156,26 @@ def get_all_symbol_info(symbol):
     dividends = get_single_symbol_info("dividends_weekly", symbol, order_by="exDividendDate", limit=1)
     
     return general_info, ratings, estimates, valuation, financials, dividends
+
+@st.cache_data
+def get_daily_stock_prices(symbol):
+
+    daily_stock_prices = get_single_symbol_info("stock_price_daily", symbol)
+
+    # Transform data
+    daily_stock_prices = daily_stock_prices[['date', 'adjclose']] # Select columns
+    daily_stock_prices['date'] = daily_stock_prices['date'].apply(lambda x: x.date()) # Convert timestamp into date
+
+    timezone = pytz.timezone('CET')
+    query_time = dt.datetime.now(tz=timezone) # Get current time
+    delta = dt.timedelta(weeks=52) # Get desired delta
+    one_year_from_now = query_time - delta # Compute date time delta from now
+    one_year_from_now = one_year_from_now.date() # Convert timestamp into date
+
+    daily_stock_prices = daily_stock_prices[daily_stock_prices['date'] > one_year_from_now] # Delete all data before the caclculated date
+    daily_stock_prices.drop_duplicates(subset=['date'], inplace=True) # Drop duplicates
+
+    return daily_stock_prices
 
 # ---------------------------------------------------------------------------------------------------
 # LLM model and functions
@@ -238,7 +258,8 @@ ticker_selection = tickers_names[tickers_names["shortName"] == company_selection
 # Header
 
 # Load datas depending on ticker_selection
-stock_prices = get_day_stock_prices(ticker_selection)
+intraday_stock_prices = get_intraday_stock_prices(ticker_selection)
+daily_stock_prices = get_daily_stock_prices(ticker_selection)
 general_info, ratings, estimates, valuation, financials, dividends = get_all_symbol_info(ticker_selection)
 
 header = st.container()
@@ -296,13 +317,29 @@ with tab1:
 # Stock prices tab
 
 with tab2:
-    st.write("""
-    ## Stock prices
-    Stock price evolution over the day.
-    """)
+    st.write("""## Stock prices""")
 
-    fig = px.line(stock_prices, x='date', y="close")
-    st.plotly_chart(fig)
+    period_selection = st.radio(label="Period selection", options=["Intraday", "1 year"], label_visibility="collapsed")
+
+    if period_selection == "Intraday":
+
+        fig = px.line(
+            intraday_stock_prices, 
+            x='date', 
+            y="close",
+            labels= {"date" : "", "close" : ""}
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    elif period_selection == "1 year":
+
+        fig = px.line(
+            daily_stock_prices, 
+            x='date', 
+            y="adjclose",
+            labels= {"date" : "", "adjclose" : ""}
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
 # ---------------------------------------------------------------------------------------------------
 # Financials tab
