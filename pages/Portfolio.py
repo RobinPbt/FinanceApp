@@ -117,9 +117,23 @@ with GMVP_col:
 
     # Performance
     st.write("""## GMVP""")
-    st.write("Expected return GMVP : {:.6f}".format(my_ptf.expected_return_GMVP))
-    st.write("Expected variance GMVP : {:.6f}".format(my_ptf.expected_variance_GMVP))
-    st.write("Expected volatility GMVP : {:.6f}".format(np.sqrt(my_ptf.expected_variance_GMVP)))
+        
+    GMVP_performance_col1, GMVP_performance_col2 = st.columns(2)
+
+    with GMVP_performance_col1:
+        st.metric(
+            label="Expected return GMVP", 
+            value="{:.2%}".format(my_ptf.expected_return_GMVP)
+        ) 
+    with GMVP_performance_col2: 
+        st.metric(
+            label="Expected volatility GMVP", 
+            value="{:.6f}".format(np.sqrt(my_ptf.expected_variance_GMVP))
+        )
+    
+    # st.write("Expected return GMVP : {:.6f}".format(my_ptf.expected_return_GMVP))
+    # st.write("Expected variance GMVP : {:.6f}".format(my_ptf.expected_variance_GMVP))
+    # st.write("Expected volatility GMVP : {:.6f}".format(np.sqrt(my_ptf.expected_variance_GMVP)))
 
     # Weights pie chart
     fig = px.pie(values=GMVP_weights.values, names=GMVP_weights.index, title='GMVP weights')
@@ -130,10 +144,24 @@ with GMVP_col:
 with efficient_col:   
     
     # Performance
-    st.write("""## Efficient portfolio""")
-    st.write("Expected return efficient portfolio : {:.6f}".format(my_ptf.expected_return_efficient_portfolio))
-    st.write("Expected variance efficient portfolio : {:.6f}".format(my_ptf.expected_variance_efficient_portfolio))
-    st.write("Expected volatility efficient portfolio : {:.6f}".format(np.sqrt(my_ptf.expected_variance_efficient_portfolio)))
+    st.write("""## Selected efficient portfolio""")
+
+    efficient_performance_col1, efficient_performance_col2 = st.columns(2)
+
+    with efficient_performance_col1:
+        st.metric(
+            label="Expected return efficient portfolio", 
+            value="{:.2%}".format(my_ptf.expected_return_efficient_portfolio)
+        )
+    with efficient_performance_col2: 
+        st.metric(
+            label="Expected volatility efficient portfolio", 
+            value="{:.6f}".format(np.sqrt(my_ptf.expected_variance_efficient_portfolio))
+        )
+    
+    # st.write("Expected return efficient portfolio : {:.6f}".format(my_ptf.expected_return_efficient_portfolio))
+    # st.write("Expected variance efficient portfolio : {:.6f}".format(my_ptf.expected_variance_efficient_portfolio))
+    # st.write("Expected volatility efficient portfolio : {:.6f}".format(np.sqrt(my_ptf.expected_variance_efficient_portfolio)))
 
     # Weights pie chart
     fig = px.pie(values=efficient_portfolio_weights.values, names=efficient_portfolio_weights.index, title='Efficient portfolio weights')
