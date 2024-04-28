@@ -12,9 +12,22 @@ import psutil
 import time
 import datetime as dt
 import pytz
+from PIL import Image
+
+from langchain.chat_models import ChatOpenAI
+from langchain.tools import DuckDuckGoSearchRun, WikipediaQueryRun
+from langchain_community.utilities import WikipediaAPIWrapper
+from langchain.prompts import PromptTemplate
+from langchain.memory import ConversationBufferMemory
+from langchain.chains import LLMChain
 
 from app_functions import *
 
+# ---------------------------------------------------------------------------------------------------
+# CONFIGURATION
+# ---------------------------------------------------------------------------------------------------
+
+# Global layout
 st.set_page_config(
     page_title="Company details",
     layout = "wide"
@@ -27,7 +40,8 @@ con = st.connection(
     url="postgresql+psycopg2://airflow:airflow@localhost/airflow"
 )
 
-# -----------------------------Define general functions ---------------------------------
+# ---------------------------------------------------------------------------------------------------
+# General functions 
 
 def get_single_symbol_info(table_name, symbol, order_by=None, limit=1):
 
@@ -49,8 +63,36 @@ def get_single_symbol_info(table_name, symbol, order_by=None, limit=1):
     query_result = con.query(query)
     symbol_info = pd.DataFrame(query_result)
     return symbol_info
+  
+def metrics_value_formatting(value, value_type="percentage", percentage_format="growth"):
+    """
+    Function for value formatting before displaying in st.metric.
 
-# -----------------------------Define caching functions ---------------------------------
+    args:
+    - value (numeric): value to be formatted
+    - value_type (str: "percentage", "millions" or "ratio"): type of numeric value
+    - percentage_format (str: "growth", "margin" or ""): format for percentages
+    """
+
+    if not value:
+        return value
+    else:
+        if value_type == "percentage":
+            if percentage_format == "growth":
+                return "{:,.2%} growth".format(value)
+            elif percentage_format == "margin":
+                return "{:,.2%} of revenue".format(value)
+            else:
+                return "{:,.2%}".format(value)
+        
+        elif value_type == "millions":
+            return "€{:,.0f} m".format(value / 10**6)
+        
+        elif value_type == "ratio":
+            return "{:,.2f}".format(value)
+
+# ---------------------------------------------------------------------------------------------------
+# Define caching functions
 
 @st.cache_data
 def get_tickers_names():
@@ -115,33 +157,76 @@ def get_all_symbol_info(symbol):
     
     return general_info, ratings, estimates, valuation, financials, dividends
 
-def millions_formatting(value):
+# ---------------------------------------------------------------------------------------------------
+# LLM model and functions
 
-    if not value:
-        return value
-    else:
-        return "€{:,.0f} m".format(value / 10**6)
+# Create a model
+chat_model = ChatOpenAI(
+    model_name="gpt-3.5-turbo", 
+    temperature=0.01, 
+    openai_api_key=os.getenv("OPENAI_API_KEY")
+)
+
+# setting up the script prompt templates
+script_template = PromptTemplate(
+    input_variables = ['company_name', 'wikipedia_research', 'web_search'], 
+    template='''Give me a 10 lines description of the activity of the company {company_name} 
+    including the location of its headquarter, its number of employees over the world, its underlying markets and its main competitors.
+    You will make use of the information and knowledge obtained from the Wikipedia research:{wikipedia_research}
+    and make use of the additional information from the web search:{web_search} ''',
+)
+
+# memory buffer
+memory = ConversationBufferMemory(
+    input_key='company_name', 
+    memory_key='chat_history')
+
+# LLM chain
+chain = LLMChain(
+    llm=chat_model, 
+    prompt=script_template, 
+    verbose=True, 
+    output_key='script', 
+    memory=memory)
+
+async def generate_script(company_name):
+    wikipedia_research = fetch_wikipedia_data(company_name)
+    web_search = fetch_web_search_results(company_name)
+    script = chain.run(
+        company_name=company_name, 
+        wikipedia_research=wikipedia_research, 
+        web_search=web_search
+    )
     
-def percentage_formatting(value, format="growth"):
+    return script, wikipedia_research, web_search
 
-    if not value:
-        return value
-    else:
-        if format == "growth":
-            return "{:,.2%} growth".format(value)
-        elif format == "margin":
-            return "{:,.2%} of revenue".format(value)
-        else:
-            return "{:,.2%}".format(value)
+# This function is a wrapper around the async function 'generate_script'
+# It allows us to call the async function in a synchronous way
+# using 'asyncio.run'
+def run_generate_script(company_name):
+    """
+    Wrapper function to run the async function 'generate_script'
+    in a synchronous way
+    
+    Args:
+        input_text (str): The input text passed to the language model
 
-def ratio_formatting(value):
+    Returns:
+        tuple: A tuple containing the script, web search and wikipedia research
+    """
+    return asyncio.run(generate_script(company_name))
 
-    if not value:
-        return value
-    else:
-        return "{:,.2f}".format(value)
+def stream_data(script):
+    for word in script.split(" "):
+        yield word + " "
+        time.sleep(0.02)
 
-# -----------------------------Define sidebar -------------------------------------------
+# ---------------------------------------------------------------------------------------------------
+# DASHBOARD
+# ---------------------------------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------------------------------
+# Sidebar
 
 # Ticker selection    
 tickers_names = get_tickers_names()
@@ -149,19 +234,10 @@ company_names = tickers_names["shortName"]
 company_selection = st.sidebar.selectbox('Company selection', company_names)
 ticker_selection = tickers_names[tickers_names["shortName"] == company_selection]["symbol"].values[0]
 
-# -----------------------------Dashboard ------------------------------------------------
+# ---------------------------------------------------------------------------------------------------
+# Header
 
-# # CSS style
-# text_bg = """
-# <style>
-# [class="st-emotion-cache-1wmy9hl e1f1d6gn0"] {
-# background-color: grey
-# }
-# </style>
-# """
-# st.markdown(text_bg, unsafe_allow_html=True)
-
-# Load datas
+# Load datas depending on ticker_selection
 stock_prices = get_day_stock_prices(ticker_selection)
 general_info, ratings, estimates, valuation, financials, dividends = get_all_symbol_info(ticker_selection)
 
@@ -176,20 +252,48 @@ with header:
 # Create tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["General information", "📈 Stock prices", "Key financials", "Estimates", "Ratings"])
 
+# ---------------------------------------------------------------------------------------------------
+# General information tab
+
 with tab1:
-    st.write("""## General information""")
-    st.write("")
-    st.write("Symbol: {}".format(general_info['symbol'].values[0]))
-    st.write("")
-    st.write("Company name: {}".format(general_info['shortName'].values[0]))
-    st.write("")
-    st.write("Sector: {}".format(general_info['sector'].values[0]))
-    st.write("")
-    st.write("Industry: {}".format(general_info['industry'].values[0]))
-    st.write("")
-    st.write("Country: {}".format(general_info['country'].values[0]))
-    st.write("")
-    st.write("Exchange: {}".format(general_info['exchangeName'].values[0]))
+    
+    general_info_col, LLM_col = st.columns([1, 3])
+    
+    with general_info_col:
+        st.write("""## General information""")
+        st.write("")
+        st.write("Symbol: {}".format(general_info['symbol'].values[0]))
+        st.write("")
+        st.write("Company name: {}".format(general_info['shortName'].values[0]))
+        st.write("")
+        st.write("Sector: {}".format(general_info['sector'].values[0]))
+        st.write("")
+        st.write("Industry: {}".format(general_info['industry'].values[0]))
+        st.write("")
+        st.write("Country: {}".format(general_info['country'].values[0]))
+        st.write("")
+        st.write("Exchange: {}".format(general_info['exchangeName'].values[0]))
+
+    with LLM_col:
+        # LLM function call
+        script, wikipedia_research, web_search = run_generate_script(company_selection)
+
+        # writing the title and script
+        st.write("""## Activity description *(powered by ChatGPT)*""")
+        image = Image.open("ChatGPT_logo.png")
+        st.image(image, width=30)
+
+        st.write(script) 
+        # st.write_stream(stream_data(script))
+        
+        # with st.expander('Wikipedia-based exploration: '): 
+        #     st.info(wikipedia_research)
+
+        # with st.expander('Web-based exploration: '):
+        #     st.info(web_search)
+
+# ---------------------------------------------------------------------------------------------------
+# Stock prices tab
 
 with tab2:
     st.write("""
@@ -200,9 +304,13 @@ with tab2:
     fig = px.line(stock_prices, x='date', y="close")
     st.plotly_chart(fig)
 
+# ---------------------------------------------------------------------------------------------------
+# Financials tab
+
 with tab3:
     st.write("""## Key financials""")
 
+    # CSS to withdraw arrows from st.metric
     st.write(
         """
         <style>
@@ -237,31 +345,31 @@ with tab3:
         with income_statement_col1:
             st.metric(
                 label="Revenue", 
-                value=millions_formatting(totalRevenue), 
-                delta=percentage_formatting(revenueGrowth, format="growth"),
+                value=metrics_value_formatting(totalRevenue, value_type="millions"), 
+                delta=metrics_value_formatting(revenueGrowth, value_type="percentage", percentage_format="growth"),
             )
 
         with income_statement_col2:
             st.metric(
                 label="Gross profits", 
-                value=millions_formatting(grossProfits), 
-                delta=percentage_formatting(grossMargins, format="margin"),
+                value=metrics_value_formatting(grossProfits, value_type="millions"), 
+                delta=metrics_value_formatting(grossMargins, value_type="percentage", percentage_format="margin"),
                 delta_color="off"
             )
 
         with income_statement_col3:
             st.metric(
                 label="EBITDA", 
-                value=millions_formatting(ebitda), 
-                delta=percentage_formatting(ebitdaMargins, format="margin"),
+                value=metrics_value_formatting(ebitda, value_type="millions"), 
+                delta=metrics_value_formatting(ebitdaMargins, value_type="percentage", percentage_format="margin"),
                 delta_color="off"
             )
 
         with income_statement_col4:
             st.metric(
                 label="Profits", 
-                value=millions_formatting(profit), 
-                delta=percentage_formatting(profitMargins, format="margin"),
+                value=metrics_value_formatting(profit, value_type="millions"), 
+                delta=metrics_value_formatting(profitMargins, value_type="percentage", percentage_format="margin"),
                 delta_color="off"
             )
 
@@ -286,31 +394,31 @@ with tab3:
         with balance_sheet_col1:
             st.metric(
                 label="Cash", 
-                value=millions_formatting(totalCash)
+                value=metrics_value_formatting(totalCash, value_type="millions")
             )
 
         with balance_sheet_col2:
             st.metric(
                 label="Debt", 
-                value=millions_formatting(totalDebt)
+                value=metrics_value_formatting(totalDebt, value_type="millions")
             )
 
         with balance_sheet_col3:
             st.metric(
                 label="Quick Ratio", 
-                value=ratio_formatting(quickRatio)
+                value=metrics_value_formatting(quickRatio, value_type="ratio")
             )
 
         with balance_sheet_col4:
             st.metric(
                 label="Current Ratio", 
-                value=ratio_formatting(currentRatio)
+                value=metrics_value_formatting(currentRatio, value_type="ratio")
             )
 
         with balance_sheet_col5:
             st.metric(
                 label="Debt to equity", 
-                value=ratio_formatting(debtToEquity)
+                value=metrics_value_formatting(debtToEquity, value_type="ratio")
             )
 
     st.divider()
@@ -334,13 +442,13 @@ with tab3:
             with cash_flow_col1:
                 st.metric(
                     label="Free cash flow", 
-                    value=millions_formatting(freeCashflow)
+                    value=metrics_value_formatting(freeCashflow, value_type="millions")
                 )
             
             with cash_flow_col2:
                 st.metric(
                     label="Operating cash flow", 
-                    value=millions_formatting(operatingCashflow)
+                    value=metrics_value_formatting(operatingCashflow, value_type="millions")
                 )
         
         with performance:
@@ -356,13 +464,13 @@ with tab3:
             with performance_col1:
                 st.metric(
                     label="Return on Assets", 
-                    value=percentage_formatting(returnOnAssets, format="")
+                    value=metrics_value_formatting(returnOnAssets, value_type="percentage", percentage_format="")
                 )
             
             with performance_col2:
                 st.metric(
                     label="Return on Equity", 
-                    value=percentage_formatting(returnOnEquity, format="")
+                    value=metrics_value_formatting(returnOnEquity, value_type="percentage", percentage_format="")
                 )
 
     # selected_items = [
@@ -371,6 +479,9 @@ with tab3:
     #         'operatingMargins', 
     #         'earningsGrowth', 
     #     ]
+
+# ---------------------------------------------------------------------------------------------------
+# Estimates tab
 
 with tab4:
     st.write("""## Estimates""")
@@ -414,13 +525,15 @@ with tab4:
             value=estimates['numberOfAnalystOpinions'].values[0]
         )
 
+# ---------------------------------------------------------------------------------------------------
+# Ratings tab
+
 with tab5:
     st.write("""## Ratings""")
     st.write("Last rating: {:.0f}/{:.0f}".format(ratings["ratingMonth"].values[0], ratings["ratingYear"].values[0]))
 
     ten_scores = ["auditRisk", "boardRisk", "compensationRisk", "shareHolderRightsRisk", "overallRisk"]
     fifteen_scores = ["environmentScore", "socialScore", "governanceScore"]
-    others = ["totalEsg", "ratingYear", "ratingMonth", "highestControversy"]
 
     ratings_col1, ratings_col2, ratings_col3 = st.columns(3)
 
@@ -430,7 +543,10 @@ with tab5:
         table_ten_scores = table_ten_scores.T
         table_ten_scores.columns = ["Scores"]
 
-        st.write("""### Ratings over 10""")
+        st.write("""
+        ### Governance ratings 
+        *(1 low risk to 10 high risk)*
+        """)
         
         st.data_editor(
             table_ten_scores,
@@ -452,7 +568,10 @@ with tab5:
         table_fifteen_scores = table_fifteen_scores.T
         table_fifteen_scores.columns = ["Scores"]
 
-        st.write("""### Ratings over 15""")
+        st.write("""
+        ### ESG ratings 
+        *(0 low performance to 15 good performance)*
+        """)
         
         st.data_editor(
             table_fifteen_scores,
