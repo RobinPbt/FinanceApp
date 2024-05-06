@@ -12,15 +12,61 @@ from langchain.prompts import PromptTemplate
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import LLMChain
 
-# ----------------------------- Valuation functions ---------------------------------
+# ---------------------------------------------------------------------------------------------------
+# General functions
 
-def compute_mean_sector_multiples(multiples):
-    """Compute mean valuation multiples of sectors for a given set of multiples"""
+def metrics_value_formatting(value, value_type="percentage", percentage_format="growth"):
+    """
+    Function for value formatting before displaying in st.metric.
 
-    mean_sector_multiples = multiples.groupby(by='sector')[['priceToBook', 'enterpriseToRevenue', 'enterpriseToEbitda', 'trailingPE']].mean()
-    mean_sector_multiples.columns = ['mean_sector_priceToBook', 'mean_sector_enterpriseToRevenue', 'mean_sector_enterpriseToEbitda', 'mean_sector_trailingPE']
+    args:
+    - value (numeric): value to be formatted
+    - value_type (str: "percentage", "millions" or "ratio"): type of numeric value
+    - percentage_format (str: "growth", "margin" or ""): format for percentages
+    """
+
+    if not value:
+        return value
+    else:
+        if value_type == "percentage":
+            if percentage_format == "growth":
+                return "{:,.2%} growth".format(value)
+            elif percentage_format == "margin":
+                return "{:,.2%} of revenue".format(value)
+            else:
+                return "{:,.2%}".format(value)
+        
+        elif value_type == "millions":
+            return "€{:,.0f} m".format(value / 10**6)
+        
+        elif value_type == "ratio":
+            return "{:,.2f}".format(value)
+
+# ---------------------------------------------------------------------------------------------------
+# Valuation functions
+
+def compute_mean_multiples(multiples, groupby_col):
+    """Compute mean valuation multiples of clusters for a given set of multiples"""
+
+    capitalized_groupby_col = groupby_col.capitalize()
+
+    mean_multiples = multiples.groupby(by=groupby_col)[[
+        'priceToBook', 
+        'enterpriseToRevenue', 
+        'enterpriseToEbitda', 
+        'trailingPE'
+    ]].mean()
     
-    return mean_sector_multiples
+    mean_multiples.columns = [
+        f'Mean{capitalized_groupby_col}PriceToBook', 
+        f'Mean{capitalized_groupby_col}EnterpriseToRevenue', 
+        f'Mean{capitalized_groupby_col}EnterpriseToEbitda', 
+        f'Mean{capitalized_groupby_col}TrailingPE'
+    ]
+
+    mean_multiples = mean_multiples.reset_index()
+    
+    return mean_multiples
 
 def revenue_valuation(enterpriseToRevenue, totalRevenue, bridge_enterpriseValue_marketCap):
     """Perform an enterprise valuation through the revenue multiple comparable method. Returns the market capitalization."""
@@ -64,44 +110,7 @@ def relative_std(values):
     
     return relative_std
 
-def peers_valuation(financials, multiples, last_valuations):
-    """
-    For a set of companies information (financials, multiples) perform a comparable valuation :
-    - Compute mean multiples by sector
-    - Apply mean multiples to relevant financial (revenue, ebitda, earnings, book value)
-    - Convert valuation into stock prices
-    - Compute mean stock price over each valuation method
-    """
-
-    # Load
-    mean_sector_multiples = compute_mean_sector_multiples(multiples)
-
-    # Select and Join
-    peers = pd.merge(multiples[['symbol', 'shortName', 'sector']], financials, on='symbol')
-    peers = pd.merge(peers, last_valuations[['symbol', 'bookValue', 'bridge_enterpriseValue_marketCap', 'sharesOutstanding']], on='symbol')
-    peers = pd.merge(peers, mean_sector_multiples, on='sector')
-    
-    # Apply valuation functions
-    peers['marketCap_revenue'] = peers.apply(lambda x: revenue_valuation(x['mean_sector_enterpriseToRevenue'], x['totalRevenue'], x['bridge_enterpriseValue_marketCap']), axis=1)
-    peers['marketCap_ebitda'] = peers.apply(lambda x: ebitda_valuation(x['mean_sector_enterpriseToEbitda'], x['ebitda'], x['bridge_enterpriseValue_marketCap']), axis=1)
-    peers['stock_price_book'] = peers.apply(lambda x: book_valuation(x['mean_sector_priceToBook'], x['bookValue'], x['bridge_enterpriseValue_marketCap']), axis=1)
-    peers['marketCap_earnings'] = peers.apply(lambda x: earnings_valuation(x['mean_sector_trailingPE'], x['earnings'], x['bridge_enterpriseValue_marketCap']), axis=1)
-
-    # Convert market capitalizations into stock prices
-    peers['stock_price_revenue'] = peers['marketCap_revenue'] / peers['sharesOutstanding']
-    peers['stock_price_ebitda'] = peers['marketCap_ebitda'] / peers['sharesOutstanding']
-    peers['stock_price_earnings'] = peers['marketCap_earnings'] / peers['sharesOutstanding']
-    
-    # Compute mean stock price over all valuation approaches
-    peers['mean_stock_price'] = peers.apply(lambda x: np.nanmean([x['stock_price_book'], x['stock_price_revenue'], x['stock_price_ebitda'], x['stock_price_earnings']]), axis=1)
-    peers['relative_std_stock_price'] = peers.apply(lambda x: relative_std([x['stock_price_book'], x['stock_price_revenue'], x['stock_price_ebitda'], x['stock_price_earnings']]), axis=1)
-    
-    # Final select
-    peers = peers[['symbol', 'shortName', 'stock_price_book', 'stock_price_revenue', 'stock_price_ebitda', 'stock_price_earnings', 'mean_stock_price', 'relative_std_stock_price']]
-    
-    return peers
-
-def target_confidence(relative_std_stock_price):
+def target_confidence_peers(relative_std_stock_price):
     """Define a confidence level on the target price --> rule based on dispersion between different prediction methods"""
     
     if relative_std_stock_price < 0: # Probably an error in valuation if stock price is negative
@@ -118,25 +127,82 @@ def target_confidence(relative_std_stock_price):
         
     return confidence
 
-def price_differential(peers, stock_price):
-    """Compute the difference between the mean stock price of valuations methods and the actual price. Set a confidence level of valuation"""
-       
-    # Select and join
-    differential_df = pd.merge(peers[['symbol', 'shortName', 'mean_stock_price', 'relative_std_stock_price']], stock_price, on='symbol')
-    
-    # Compute diff
-    differential_df['absolute_diff'] = differential_df['mean_stock_price'] - differential_df['lastPrice']
-    differential_df['relative_diff'] = differential_df['absolute_diff'] / differential_df['lastPrice']
-    
-    # Set a confidence level
-    differential_df['confidence'] = differential_df['relative_std_stock_price'].apply(lambda x: target_confidence(x))
-    
-    # Sort from most undervalued to most overvalued
-    differential_df = differential_df.sort_values(by='relative_diff', ascending=False)
-    
-    return differential_df
+def peers_valuation(groupby_col, financials, multiples, last_valuations, stock_price):
+    """
+    For a set of companies information (financials, multiples) perform a comparable valuation :
+    - Compute mean multiples by the column defined in groupby_col
+    - Apply mean multiples to relevant financial (revenue, ebitda, earnings, book value)
+    - Convert valuation into stock prices
+    - Compute mean stock price over each valuation method
+    - Compute difference with actual price
+    Returns mean multiples and peer valuation details
+    """
 
-# ----------------------------- LLM functions ---------------------------------
+    capitalized_groupby_col = groupby_col.capitalize()
+
+    # Compure mean sector multiples
+    mean_multiples = compute_mean_multiples(multiples, groupby_col)
+
+    # Select and Join
+    # peers = pd.merge(multiples[['symbol', 'shortName', groupby_col]], financials, on='symbol')
+    peers = pd.merge(multiples, financials, on='symbol')
+    peers = pd.merge(peers, last_valuations[['symbol', 'bookValue', 'BridgeEnterpriseValueMarketCap', 'sharesOutstanding']], on='symbol')
+    peers = pd.merge(peers, mean_multiples, on=groupby_col)
+    peers = pd.merge(peers, stock_price, on='symbol')
+    
+    # Apply valuation functions
+    peers[f'marketCapRevenue{capitalized_groupby_col}'] = peers.apply(lambda x: revenue_valuation(x[f'Mean{capitalized_groupby_col}EnterpriseToRevenue'], x['totalRevenue'], x['BridgeEnterpriseValueMarketCap']), axis=1)
+    peers[f'marketCapEbitda{capitalized_groupby_col}'] = peers.apply(lambda x: ebitda_valuation(x[f'Mean{capitalized_groupby_col}EnterpriseToEbitda'], x['ebitda'], x['BridgeEnterpriseValueMarketCap']), axis=1)
+    peers[f'stockPriceBook{capitalized_groupby_col}'] = peers.apply(lambda x: book_valuation(x[f'Mean{capitalized_groupby_col}PriceToBook'], x['bookValue'], x['BridgeEnterpriseValueMarketCap']), axis=1)
+    peers[f'marketCapEarnings{capitalized_groupby_col}'] = peers.apply(lambda x: earnings_valuation(x[f'Mean{capitalized_groupby_col}TrailingPE'], x['earnings'], x['BridgeEnterpriseValueMarketCap']), axis=1)
+
+    # Convert market capitalizations into stock prices (or the other way round)
+    peers[f'stockPriceRevenue{capitalized_groupby_col}'] = peers[f'marketCapRevenue{capitalized_groupby_col}'] / peers['sharesOutstanding']
+    peers[f'stockPriceEbitda{capitalized_groupby_col}'] = peers[f'marketCapEbitda{capitalized_groupby_col}'] / peers['sharesOutstanding']
+    peers[f'stockPriceEarnings{capitalized_groupby_col}'] = peers[f'marketCapEarnings{capitalized_groupby_col}'] / peers['sharesOutstanding']
+    peers[f'marketCapBook{capitalized_groupby_col}'] = peers[f'stockPriceBook{capitalized_groupby_col}'] * peers['sharesOutstanding']
+    
+    # Compute mean stock price over all valuation approaches
+    peers[f'PeersMeanStockPrice{capitalized_groupby_col}'] = peers.apply(lambda x: np.nanmean([x[f'stockPriceBook{capitalized_groupby_col}'], x[f'stockPriceRevenue{capitalized_groupby_col}'], x[f'stockPriceEbitda{capitalized_groupby_col}'], x[f'stockPriceEarnings{capitalized_groupby_col}']]), axis=1)
+    peers[f'PeersRelativeStdStockPrice{capitalized_groupby_col}'] = peers.apply(lambda x: relative_std([x[f'stockPriceBook{capitalized_groupby_col}'], x[f'stockPriceRevenue{capitalized_groupby_col}'], x[f'stockPriceEbitda{capitalized_groupby_col}'], x[f'stockPriceEarnings{capitalized_groupby_col}']]), axis=1)
+    
+    # Compute differential with actual stock prices
+    peers[f'PeersAbsoluteDiff{capitalized_groupby_col}'] = peers[f'PeersMeanStockPrice{capitalized_groupby_col}'] - peers['lastPrice']
+    peers[f'PeersRelativeDiff{capitalized_groupby_col}'] = peers[f'PeersAbsoluteDiff{capitalized_groupby_col}'] / peers['lastPrice']
+
+    # Set a confidence level
+    peers[f'PeersConfidence{capitalized_groupby_col}'] = peers[f'PeersRelativeStdStockPrice{capitalized_groupby_col}'].apply(lambda x: target_confidence_peers(x))
+
+    # Final select
+    peers = peers[[
+        'symbol',
+        'date',
+        'shortName',
+        'cluster',
+        'lastPrice',
+        'priceToBook',
+        'enterpriseToRevenue',
+        'enterpriseToEbitda',
+        'trailingPE',
+        'BridgeEnterpriseValueMarketCap',
+        f'marketCapRevenue{capitalized_groupby_col}',
+        f'marketCapEbitda{capitalized_groupby_col}',
+        f'marketCapEarnings{capitalized_groupby_col}',
+        f'marketCapBook{capitalized_groupby_col}',
+        f'stockPriceRevenue{capitalized_groupby_col}', 
+        f'stockPriceEbitda{capitalized_groupby_col}', 
+        f'stockPriceEarnings{capitalized_groupby_col}',
+        f'stockPriceBook{capitalized_groupby_col}',
+        f'PeersMeanStockPrice{capitalized_groupby_col}', 
+        f'PeersRelativeStdStockPrice{capitalized_groupby_col}',
+        f'PeersAbsoluteDiff{capitalized_groupby_col}',
+        f'PeersRelativeDiff{capitalized_groupby_col}',
+        f'PeersConfidence{capitalized_groupby_col}'
+    ]]
+
+    return mean_multiples, peers
+# ---------------------------------------------------------------------------------------------------
+# LLM functions
 
 def retry(max_attempts=3, delay_seconds=2, check_return_value=False):
     """
@@ -178,7 +244,8 @@ def fetch_web_search_results(company_name):
     search = DuckDuckGoSearchRun()
     return search.run(company_name)
 
-# ----------------------------- Portfolio allocation functions ---------------------------------
+# ---------------------------------------------------------------------------------------------------
+# Portfolio allocation functions
 
 def compute_returns(stock_prices_df, continuous=True):
     """
