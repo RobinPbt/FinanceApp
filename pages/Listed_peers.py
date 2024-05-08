@@ -41,7 +41,7 @@ def get_tickers_names():
         SELECT 
             DISTINCT(p.symbol),
             g."shortName"
-        FROM peers_valuation p
+        FROM sector_peers_valuation p
         LEFT JOIN general_information g ON p.symbol = g.symbol;
     """
 
@@ -59,10 +59,10 @@ def get_peers():
             SELECT
                 "symbol",
                 MAX("date") AS last_date
-            FROM peers_valuation
+            FROM sector_peers_valuation
             GROUP BY "symbol"
             ) l
-        LEFT JOIN peers_valuation AS p ON p."symbol" = l."symbol" AND p."date" = l."last_date"
+        LEFT JOIN sector_peers_valuation AS p ON p."symbol" = l."symbol" AND p."date" = l."last_date"
         )
         SELECT
             last_peers.*, 
@@ -129,9 +129,6 @@ peers = get_peers()
 
 # Define containers
 header = st.container()
-# global_view = st.container()
-# multiples_view = st.container()
-# detailed_view = st.container()
 
 with header:
        
@@ -162,8 +159,6 @@ with tab1:
 
     with all_peers_section:
         
-        # show_peers = st.checkbox("Show all peers")
-        # if show_peers:
         with st.expander("Show all peers"):
             st.dataframe(
                 data=peers[[
@@ -171,38 +166,38 @@ with tab1:
                     'sector',
                     'lastPrice',
                     'date', 
-                    'PeersMeanStockPrice', 
-                    'PeersRelativeStdStockPrice', 
-                    'PeersAbsoluteDiff', 
-                    'PeersRelativeDiff', 
-                    'PeersConfidence'
+                    'PeersMeanStockPriceSector', 
+                    'PeersRelativeStdStockPriceSector', 
+                    'PeersAbsoluteDiffSector', 
+                    'PeersRelativeDiffSector', 
+                    'PeersConfidenceSector'
                 ]]
             )
 
     with top_10_section:
-        top_10 = peers[["shortName", "PeersRelativeDiff"]].dropna(subset="PeersRelativeDiff").sort_values(by=["PeersRelativeDiff"], ascending=False).head(10)
+        top_10 = peers[["shortName", "PeersRelativeDiffSector"]].dropna(subset="PeersRelativeDiffSector").sort_values(by=["PeersRelativeDiffSector"], ascending=False).head(10)
 
         # Plot chart with top 10 undervalued stocks
         fig = px.bar(
             data_frame=top_10,
             x="shortName", 
-            y="PeersRelativeDiff", 
+            y="PeersRelativeDiffSector", 
             title="Top 10 undervalued stocks",
-            labels={"shortName" : "", "PeersRelativeDiff" : "Percentage (+)under/(-)over valuation"}
+            labels={"shortName" : "", "PeersRelativeDiffSector" : "Percentage (+)under/(-)over valuation"}
         )
 
         st.plotly_chart(fig, use_container_width=True)
 
     with bottom_10_section:
-        bottom_10 = peers[["shortName", "PeersRelativeDiff"]].dropna(subset="PeersRelativeDiff").sort_values(by=["PeersRelativeDiff"], ascending=True).head(10)
+        bottom_10 = peers[["shortName", "PeersRelativeDiffSector"]].dropna(subset="PeersRelativeDiffSector").sort_values(by=["PeersRelativeDiffSector"], ascending=True).head(10)
 
         # Plot chart with top 10 undervalued stocks
         fig = px.bar(
             data_frame=bottom_10,
             x="shortName", 
-            y="PeersRelativeDiff", 
+            y="PeersRelativeDiffSector", 
             title="Top 10 overvalued stocks",
-            labels={"shortName" : "", "PeersRelativeDiff" : "Percentage (+)under/(-)over valuation"}
+            labels={"shortName" : "", "PeersRelativeDiffSector" : "Percentage (+)under/(-)over valuation"}
         )
 
         st.plotly_chart(fig, use_container_width=True)
@@ -242,10 +237,10 @@ with tab3:
     sector_multiples = get_sector_multiples()
     selected_sector_multiples = sector_multiples[sector_multiples["sector"] == selected_peers['sector'].values[0]].drop("sector", axis=1)
     
-    x_axis_peers = ['stockPriceBook', 'stockPriceRevenue', 'stockPriceEbitda', 'stockPriceEarnings']
+    x_axis_peers = ['stockPriceBookSector', 'stockPriceRevenueSector', 'stockPriceEbitdaSector', 'stockPriceEarningsSector']
     current_multiples = selected_peers[x_axis_peers]
 
-    x_axis_price = ['PeersMeanStockPrice', 'lastPrice']
+    x_axis_price = ['PeersMeanStockPriceSector', 'lastPrice']
     current_price = selected_peers[x_axis_price]
     current_price.columns = ['Valuation price', 'Current price']
 
@@ -262,7 +257,7 @@ with tab3:
     with detailed_view_col2:
         st.metric(
             label="Difference with current price", 
-            value=metrics_value_formatting(selected_peers['PeersRelativeDiff'].values[0], value_type="percentage", percentage_format=""), 
+            value=metrics_value_formatting(selected_peers['PeersRelativeDiffSector'].values[0], value_type="percentage", percentage_format=""), 
         )    
     with detailed_view_col3: 
         st.metric(
@@ -272,7 +267,7 @@ with tab3:
     with detailed_view_col4:
         st.metric(
             label="Confidence valuation", 
-            value=selected_peers['PeersConfidence'].values[0]
+            value=selected_peers['PeersConfidenceSector'].values[0]
         )
 
     graph_multiples, compare_graph = st.columns(2)

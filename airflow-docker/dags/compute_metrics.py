@@ -76,7 +76,7 @@ def compute_metrics():
     )
 
     # ---------------------------------------------------------------------------------------------------
-    # Create mean multiples table
+    # Create mean sector multiples table
     create_mean_sector_multiples_table = PostgresOperator(
         task_id="create_mean_sector_multiples_table",
         postgres_conn_id="finapp_postgres_conn",
@@ -92,57 +92,131 @@ def compute_metrics():
     )
 
     # ---------------------------------------------------------------------------------------------------
-    # Create peers tables
+    # Create sector peers tables
 
     # Permanent table
-    create_peers_valuation_table = PostgresOperator(
-        task_id="create_peers_valuation_table",
+    create_sector_peers_valuation_table = PostgresOperator(
+        task_id="create_sector_peers_valuation_table",
         postgres_conn_id="finapp_postgres_conn",
         sql="""
-            CREATE TABLE IF NOT EXISTS peers_valuation (
+            CREATE TABLE IF NOT EXISTS sector_peers_valuation (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
                 "BridgeEnterpriseValueMarketCap" FLOAT,
-                "marketCapRevenue" FLOAT,
-                "marketCapEbitda" FLOAT,
-                "marketCapEarnings" FLOAT,
-                "marketCapBook" FLOAT,
-                "stockPriceRevenue" FLOAT,
-                "stockPriceEbitda" FLOAT,
-                "stockPriceEarnings" FLOAT,
-                "stockPriceBook" FLOAT,
-                "PeersMeanStockPrice" FLOAT,
-                "PeersRelativeStdStockPrice" FLOAT,
-                "PeersAbsoluteDiff" FLOAT,
-                "PeersRelativeDiff" FLOAT,
-                "PeersConfidence" TEXT,
+                "marketCapRevenueSector" FLOAT,
+                "marketCapEbitdaSector" FLOAT,
+                "marketCapEarningsSector" FLOAT,
+                "marketCapBookSector" FLOAT,
+                "stockPriceRevenueSector" FLOAT,
+                "stockPriceEbitdaSector" FLOAT,
+                "stockPriceEarningsSector" FLOAT,
+                "stockPriceBookSector" FLOAT,
+                "PeersMeanStockPriceSector" FLOAT,
+                "PeersRelativeStdStockPriceSector" FLOAT,
+                "PeersAbsoluteDiffSector" FLOAT,
+                "PeersRelativeDiffSector" FLOAT,
+                "PeersConfidenceSector" TEXT,
                 PRIMARY KEY ("symbol", "date")
             );""",
     )
 
     # Temporary table
-    create_peers_valuation_temp_table = PostgresOperator(
-        task_id="create_peers_valuation_temp_table",
+    create_sector_peers_valuation_temp_table = PostgresOperator(
+        task_id="create_sector_peers_valuation_temp_table",
         postgres_conn_id="finapp_postgres_conn",
         sql="""
-            DROP TABLE IF EXISTS peers_valuation_temp;
-            CREATE TABLE peers_valuation_temp (
+            DROP TABLE IF EXISTS sector_peers_valuation_temp;
+            CREATE TABLE sector_peers_valuation_temp (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
                 "BridgeEnterpriseValueMarketCap" FLOAT,
-                "marketCapRevenue" FLOAT,
-                "marketCapEbitda" FLOAT,
-                "marketCapEarnings" FLOAT,
-                "marketCapBook" FLOAT,
-                "stockPriceRevenue" FLOAT,
-                "stockPriceEbitda" FLOAT,
-                "stockPriceEarnings" FLOAT,
-                "stockPriceBook" FLOAT,
-                "PeersMeanStockPrice" FLOAT,
-                "PeersRelativeStdStockPrice" FLOAT,
-                "PeersAbsoluteDiff" FLOAT,
-                "PeersRelativeDiff" FLOAT,
-                "PeersConfidence" TEXT,
+                "marketCapRevenueSector" FLOAT,
+                "marketCapEbitdaSector" FLOAT,
+                "marketCapEarningsSector" FLOAT,
+                "marketCapBookSector" FLOAT,
+                "stockPriceRevenueSector" FLOAT,
+                "stockPriceEbitdaSector" FLOAT,
+                "stockPriceEarningsSector" FLOAT,
+                "stockPriceBookSector" FLOAT,
+                "PeersMeanStockPriceSector" FLOAT,
+                "PeersRelativeStdStockPriceSector" FLOAT,
+                "PeersAbsoluteDiffSector" FLOAT,
+                "PeersRelativeDiffSector" FLOAT,
+                "PeersConfidenceSector" TEXT,
+                PRIMARY KEY ("symbol", "date")
+            );""",
+    )
+
+    # ---------------------------------------------------------------------------------------------------
+    # Create mean cluster multiples table
+    create_mean_cluster_multiples_table = PostgresOperator(
+        task_id="create_mean_cluster_multiples_table",
+        postgres_conn_id="finapp_postgres_conn",
+        sql="""
+            DROP TABLE IF EXISTS mean_cluster_multiples;
+            CREATE TABLE mean_cluster_multiples (
+                "cluster" TEXT PRIMARY KEY,
+                "MeanClusterPriceToBook" FLOAT,
+                "MeanClusterEnterpriseToRevenue" FLOAT,
+                "MeanClusterEnterpriseToEbitda" FLOAT,
+                "MeanClusterTrailingPE" FLOAT
+            );""",
+    )
+
+    # ---------------------------------------------------------------------------------------------------
+    # Create clustering peers tables
+
+    # Permanent table
+    create_clustering_peers_valuation_table = PostgresOperator(
+        task_id="create_clustering_peers_valuation_table",
+        postgres_conn_id="finapp_postgres_conn",
+        sql="""
+            CREATE TABLE IF NOT EXISTS clustering_peers_valuation (
+                "symbol" TEXT,
+                "date" TIMESTAMP,
+                "cluster" TEXT,
+                "BridgeEnterpriseValueMarketCap" FLOAT,
+                "marketCapRevenueCluster" FLOAT,
+                "marketCapEbitdaCluster" FLOAT,
+                "marketCapEarningsCluster" FLOAT,
+                "marketCapBookCluster" FLOAT,
+                "stockPriceRevenueCluster" FLOAT,
+                "stockPriceEbitdaCluster" FLOAT,
+                "stockPriceEarningsCluster" FLOAT,
+                "stockPriceBookCluster" FLOAT,
+                "PeersMeanStockPriceCluster" FLOAT,
+                "PeersRelativeStdStockPriceCluster" FLOAT,
+                "PeersAbsoluteDiffCluster" FLOAT,
+                "PeersRelativeDiffCluster" FLOAT,
+                "PeersConfidenceCluster" TEXT,
+                PRIMARY KEY ("symbol", "date")
+            );""",
+    )
+
+    # Temporary table
+    create_clustering_peers_valuation_temp_table = PostgresOperator(
+        task_id="create_clustering_peers_valuation_temp_table",
+        postgres_conn_id="finapp_postgres_conn",
+        sql="""
+            DROP TABLE IF EXISTS clustering_peers_valuation_temp;
+            CREATE TABLE clustering_peers_valuation_temp (
+                "symbol" TEXT,
+                "date" TIMESTAMP,
+                "cluster" TEXT,
+                "BridgeEnterpriseValueMarketCap" FLOAT,
+                "marketCapRevenueCluster" FLOAT,
+                "marketCapEbitdaCluster" FLOAT,
+                "marketCapEarningsCluster" FLOAT,
+                "marketCapBookCluster" FLOAT,
+                "stockPriceRevenueCluster" FLOAT,
+                "stockPriceEbitdaCluster" FLOAT,
+                "stockPriceEarningsCluster" FLOAT,
+                "stockPriceBookCluster" FLOAT,
+                "PeersMeanStockPriceCluster" FLOAT,
+                "PeersRelativeStdStockPriceCluster" FLOAT,
+                "PeersAbsoluteDiffCluster" FLOAT,
+                "PeersRelativeDiffCluster" FLOAT,
+                "PeersConfidenceCluster" TEXT,
                 PRIMARY KEY ("symbol", "date")
             );""",
     )
@@ -396,9 +470,11 @@ def compute_metrics():
         # Load ML models
 
         preprocessor_file_path = os.path.join(files_dir_path, "test_preprocessor.pkl")
-        model_file_path = os.path.join(files_dir_path, "test_model.pkl")
+        regression_model_file_path = os.path.join(files_dir_path, "test_model.pkl")
+        clustering_model_file_path = os.path.join(files_dir_path, "test_clustering.pkl")
         preprocessor = pickle.load(open(preprocessor_file_path, 'rb'))
-        model = pickle.load(open(model_file_path, 'rb'))
+        regression_model = pickle.load(open(regression_model_file_path, 'rb'))
+        clustering_model = pickle.load(open(clustering_model_file_path, 'rb'))
 
         # ---------------------------------------------------------------------------------------------------
         # TRANSFORM
@@ -410,12 +486,13 @@ def compute_metrics():
         estimates_diff = estimates_diff[['symbol', 'date', 'EstimatesAbsoluteDiff', 'EstimatesRelativeDiff', 'EstimatesConfidence']]
         
         # ---------------------------------------------------------------------------------------------------
-        # Peers
-        mean_sector_multiples, peers = peers_valuation(financials, multiples, last_valuations, stock_price)
+        # Sector Peers
+        mean_sector_multiples, sector_peers = peers_valuation("sector", financials, multiples, last_valuations, stock_price)
+        sector_peers.drop("sector", axis=1, inplace=True)
 
         # ---------------------------------------------------------------------------------------------------
-        # Regression ML
-        
+        # Clustering Peers
+
         # Preprocess features
         symbols = ML_features['symbol']
         current_price = ML_features['close']
@@ -423,8 +500,18 @@ def compute_metrics():
         X = ML_features.drop(['symbol', 'close', 'date'], axis=1)
         X_prep = preprocessor.transform(X)
 
+        # Predict clusters
+        clusters = clustering_model.predict(X_prep)
+
+        # Perform valuation
+        multiples['cluster'] = clusters
+        mean_cluster_multiples, cluster_peers = peers_valuation("cluster", financials, multiples, last_valuations, stock_price)
+
+        # ---------------------------------------------------------------------------------------------------
+        # Regression ML
+        
         # Predict
-        predictions = model.predict(X_prep)
+        predictions = regression_model.predict(X_prep)
 
         # Compute differences
         regression_ML = pd.DataFrame(data=current_price)
@@ -445,8 +532,14 @@ def compute_metrics():
         mean_sector_multiples_file_path = os.path.join(files_dir_path, "mean_sector_multiples.csv")
         mean_sector_multiples.to_csv(mean_sector_multiples_file_path, index=True)
 
-        peers_file_path = os.path.join(files_dir_path, "peers_valuation.csv")
-        peers.to_csv(peers_file_path, index=False)
+        mean_cluster_multiples_file_path = os.path.join(files_dir_path, "mean_cluster_multiples.csv")
+        mean_cluster_multiples.to_csv(mean_cluster_multiples_file_path, index=True)
+
+        sector_peers_file_path = os.path.join(files_dir_path, "sector_peers_valuation.csv")
+        sector_peers.to_csv(sector_peers_file_path, index=False)
+
+        cluster_peers_file_path = os.path.join(files_dir_path, "cluster_peers_valuation.csv")
+        cluster_peers.to_csv(cluster_peers_file_path, index=False)
 
         regression_file_path = os.path.join(files_dir_path, "regression_ML.csv")
         regression_ML.to_csv(regression_file_path, index=False)    
@@ -477,11 +570,27 @@ def compute_metrics():
                 file,
             )
 
-        # Peers valuation
-        peers_file_path = "/opt/airflow/dags/files/peers_valuation.csv"
-        with open(peers_file_path, "r") as file:
+        # Cluster multiples
+        mean_cluster_multiples_file_path = "/opt/airflow/dags/files/mean_cluster_multiples.csv"
+        with open(mean_cluster_multiples_file_path, "r") as file:
             cur.copy_expert(
-                "COPY peers_valuation_temp FROM STDIN WITH CSV HEADER DELIMITER AS ',' QUOTE '\"'",
+                "COPY mean_cluster_multiples FROM STDIN WITH CSV HEADER DELIMITER AS ',' QUOTE '\"'",
+                file,
+            )
+
+        # Sector peers valuation
+        sector_peers_file_path = "/opt/airflow/dags/files/sector_peers_valuation.csv"
+        with open(sector_peers_file_path, "r") as file:
+            cur.copy_expert(
+                "COPY sector_peers_valuation_temp FROM STDIN WITH CSV HEADER DELIMITER AS ',' QUOTE '\"'",
+                file,
+            )
+
+        # Cluster peers valuation
+        cluster_peers_file_path = "/opt/airflow/dags/files/cluster_peers_valuation.csv"
+        with open(cluster_peers_file_path, "r") as file:
+            cur.copy_expert(
+                "COPY clustering_peers_valuation_temp FROM STDIN WITH CSV HEADER DELIMITER AS ',' QUOTE '\"'",
                 file,
             )
         
@@ -508,14 +617,24 @@ def compute_metrics():
             DROP TABLE IF EXISTS estimates_diff_temp;
         """
 
-        # Peers
-        query_peers = """
-            INSERT INTO peers_valuation
+        # Sector Peers
+        query_sector_peers = """
+            INSERT INTO sector_peers_valuation
             SELECT *
-            FROM peers_valuation_temp
+            FROM sector_peers_valuation_temp
             ON CONFLICT("symbol", "date")
             DO NOTHING;
-            DROP TABLE IF EXISTS peers_valuation_temp;
+            DROP TABLE IF EXISTS sector_peers_valuation_temp;
+        """
+
+        # Cluster Peers
+        query_cluster_peers = """
+            INSERT INTO clustering_peers_valuation
+            SELECT *
+            FROM clustering_peers_valuation_temp
+            ON CONFLICT("symbol", "date")
+            DO NOTHING;
+            DROP TABLE IF EXISTS clustering_peers_valuation_temp;
         """
 
         # Regression
@@ -529,7 +648,8 @@ def compute_metrics():
         """
 
         cur.execute(query_estimates)
-        cur.execute(query_peers)
+        cur.execute(query_sector_peers)
+        cur.execute(query_cluster_peers)
         cur.execute(query_regression)
         conn.commit()
 
@@ -542,8 +662,13 @@ def compute_metrics():
         create_estimates_diff_table, 
         create_estimates_diff_temp_table,
         create_mean_sector_multiples_table,
-        create_peers_valuation_table,
-        create_peers_valuation_temp_table
+        create_sector_peers_valuation_table,
+        create_sector_peers_valuation_temp_table,
+        create_mean_cluster_multiples_table,
+        create_clustering_peers_valuation_table,
+        create_clustering_peers_valuation_temp_table,
+        create_regression_ML_table,
+        create_regression_ML_temp_table
     ] >> download_data() >> update_db() >> trigger_synthetize_metrics
 
 dag = compute_metrics()

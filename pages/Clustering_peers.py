@@ -13,7 +13,6 @@ import psutil
 import time
 import datetime as dt
 import pytz
-import pickle
 
 from app_functions import *
 
@@ -42,7 +41,7 @@ def get_tickers_names():
         SELECT 
             DISTINCT(p.symbol),
             g."shortName"
-        FROM peers_valuation p
+        FROM clustering_peers_valuation p
         LEFT JOIN general_information g ON p.symbol = g.symbol;
     """
 
@@ -50,181 +49,49 @@ def get_tickers_names():
     return tickers_list
 
 @st.cache_data
-def get_peers_tables():
+def get_peers():
     query = """
-    SELECT
-        g."symbol", 
-        g."shortName",
-        g."sector",
-        g."industry",
-        v."priceToBook",
-        v."enterpriseToRevenue",
-        v."enterpriseToEbitda",
-        v."trailingPE"
-    FROM general_information AS g
-    LEFT JOIN last_valuations v ON g."symbol" = v."symbol";
-    """
-
-    query_result = con.query(query)
-    multiples = pd.DataFrame(query_result)
-
-    query = """
-        WITH last_stock_info 
+        WITH last_peers 
         AS 
         (
-        SELECT
-            s."symbol",
-            s."date",
-            s."sharesOutstanding"
+        SELECT p.*
         FROM (
             SELECT
                 "symbol",
                 MAX("date") AS last_date
-            FROM stock_information
+            FROM clustering_peers_valuation
             GROUP BY "symbol"
             ) l
-        LEFT JOIN stock_information AS s ON s."symbol" = l."symbol" AND s."date" = l."last_date"
+        LEFT JOIN clustering_peers_valuation AS p ON p."symbol" = l."symbol" AND p."date" = l."last_date"
         )
         SELECT
-            v."symbol", 
-            v."bookValue",
-            v."enterpriseValue",
-            (v."enterpriseValue" - v."marketCap") AS "BridgeEnterpriseValueMarketCap",
-            v."marketCap",
-            last_stock_info."sharesOutstanding",
-            (v."marketCap" / last_stock_info."sharesOutstanding") AS "stock_price"
-        FROM last_valuations AS v
-        LEFT JOIN last_stock_info ON last_stock_info."symbol" = v."symbol";
+            last_peers.*, 
+            g."shortName",
+            s."close" AS "lastPrice",
+            v."priceToBook",
+            v."enterpriseToRevenue",
+            v."enterpriseToEbitda",
+            v."trailingPE"
+        FROM last_peers
+        LEFT JOIN general_information AS g ON last_peers."symbol" = g."symbol"
+        LEFT JOIN last_stock_prices AS s ON last_peers."symbol" = s."symbol" AND last_peers."date" = s."date"
+        LEFT JOIN last_valuations AS v ON last_peers."symbol" = v."symbol";
     """
-
-    query_result = con.query(query)
-    last_valuations = pd.DataFrame(query_result)
-
-    query = """
-        SELECT
-            "symbol", 
-            "totalRevenue",
-            "ebitda",
-            ("totalRevenue" * "profitMargins") AS "earnings"
-        FROM last_financials
-    """
-
-    query_result = con.query(query)
-    financials = pd.DataFrame(query_result)
-
-    query = """
-    SELECT
-        "symbol",
-        "close" AS "lastPrice",
-        "date"
-    FROM last_stock_prices;
-    """
-
-    query_result = con.query(query)
-    stock_price = pd.DataFrame(query_result)
     
-    return multiples, last_valuations, financials, stock_price
+    query_result = con.query(query)
+    peers_valuation = pd.DataFrame(query_result)
+    return peers_valuation
 
 @st.cache_data
-def get_ML_features():
-    
+def get_cluster_multiples():
     query = """
-    WITH last_stock_info 
-    AS 
-    (
-    SELECT si.*
-    FROM (
-        SELECT
-            "symbol",
-            MAX("date") AS last_date
-        FROM stock_information
-        GROUP BY "symbol"
-        ) lsi
-    LEFT JOIN stock_information AS si ON si."symbol" = lsi."symbol" AND si."date" = lsi."last_date"
-    ),
-    last_ratings
-    AS
-    (
-    SELECT ra.*
-    FROM (
-        SELECT
-            "symbol",
-            MAX("date") AS last_date
-        FROM ratings
-        GROUP BY "symbol"
-        ) lra
-    LEFT JOIN ratings AS ra ON ra."symbol" = lra."symbol" AND ra."date" = lra."last_date"
-    )
-    SELECT 
-        gi."shortName",
-        gi."sector",
-        gi."industry",
-        gi."fullTimeEmployees",
-        gi."regularMarketSource",
-        gi."exchange",
-        gi."quoteType",
-        gi."currency",
-        last_ratings."auditRisk",
-        last_ratings."boardRisk",
-        last_ratings."compensationRisk",
-        last_ratings."shareHolderRightsRisk",
-        last_ratings."overallRisk",
-        last_ratings."totalEsg",
-        last_ratings."environmentScore",
-        last_ratings."socialScore",
-        last_ratings."governanceScore",
-        last_ratings."highestControversy",
-        last_stock_info."floatShares",
-        last_stock_info."sharesOutstanding",
-        last_stock_info."heldPercentInsiders",
-        last_stock_info."heldPercentInstitutions",  
-        last_financials."totalCash",
-        last_financials."totalCashPerShare",
-        last_financials."totalDebt",
-        last_financials."quickRatio",
-        last_financials."currentRatio",
-        last_financials."debtToEquity",
-        last_financials."totalRevenue",
-        last_financials."revenuePerShare",
-        last_financials."revenueGrowth",
-        last_financials."grossProfits",
-        last_financials."grossMargins",
-        last_financials."operatingMargins",
-        last_financials."ebitda",
-        last_financials."ebitdaMargins",
-        last_financials."earningsGrowth",
-        last_financials."profitMargins",
-        last_financials."freeCashflow",
-        last_financials."operatingCashflow",
-        last_financials."returnOnAssets",
-        last_financials."returnOnEquity",
-        last_estimates."targetHighPrice",
-        last_estimates."targetLowPrice",
-        last_estimates."targetMeanPrice",
-        last_estimates."targetMedianPrice",
-        last_estimates."recommendationMean",
-        last_estimates."recommendationKey",
-        last_estimates."numberOfAnalystOpinions",
-        last_stock_prices."close"
-    FROM general_information AS gi
-    LEFT JOIN last_ratings ON gi."symbol" = last_ratings.symbol
-    LEFT JOIN last_stock_info ON gi."symbol" = last_stock_info.symbol
-    LEFT JOIN last_financials ON gi."symbol" = last_financials.symbol
-    LEFT JOIN last_estimates ON gi."symbol" = last_estimates.symbol
-    LEFT JOIN last_stock_prices ON gi."symbol" = last_stock_prices.symbol
+        SELECT *
+        FROM mean_cluster_multiples;
     """
 
     query_result = con.query(query)
-    ML_features = pd.DataFrame(query_result)
-    return ML_features
-
-@st.cache_data
-def get_model():
-
-    preprocessor = pickle.load(open('./test_preprocessor.pkl', 'rb'))
-    model = pickle.load(open('./test_clustering.pkl', 'rb'))
-
-    return preprocessor, model
+    cluster_multiples = pd.DataFrame(query_result)
+    return cluster_multiples
 
 def create_bar_chart(cluster_multiples, multiple, title):
     """Function to plot horizontal bar chart with mean cluster multiples"""
@@ -257,33 +124,15 @@ ticker_selection = tickers_names[tickers_names["shortName"] == company_selection
 # Header
 
 # Load datas
-multiples, last_valuations, financials, stock_price = get_peers_tables()
-ML_features = get_ML_features()
-preprocessor, model = get_model()
-
-# Preprocess features
-names = ML_features['shortName']
-current_price = ML_features['close']
-X = ML_features.drop(['shortName', 'close'], axis=1)
-X_prep = preprocessor.transform(X)
-
-# Predict clusters
-clusters = model.predict(X_prep)
-
-# Perform peers valuation based on clusters
-multiples['cluster'] = clusters
-mean_cluster_multiples, cluster_peers = peers_valuation("cluster", financials, multiples, last_valuations, stock_price)
+peers = get_peers()
 
 # Define containers
 header = st.container()
-# global_view = st.container()
-# multiples_view = st.container()
-# detailed_view = st.container()
 
 with header:
        
     st.write("""
-    # CLustering Peers
+    # Clustering Peers
     Difference between stock prices and the price estimated with a peers valuation approach by cluster resulting from a ML algorithm.
     """)
 
@@ -310,11 +159,9 @@ with tab1:
 
     with all_peers_section:
         
-        # show_peers = st.checkbox("Show all peers")
-        # if show_peers:
         with st.expander("Show all peers"):
             st.dataframe(
-                data=cluster_peers[[
+                data=peers[[
                     'shortName',
                     'cluster',
                     'lastPrice',
@@ -328,7 +175,7 @@ with tab1:
             )
 
     with top_10_section:
-        top_10 = cluster_peers[["shortName", "PeersRelativeDiffCluster"]].dropna(subset="PeersRelativeDiffCluster").sort_values(by=["PeersRelativeDiffCluster"], ascending=False).head(10)
+        top_10 = peers[["shortName", "PeersRelativeDiffCluster"]].dropna(subset="PeersRelativeDiffCluster").sort_values(by=["PeersRelativeDiffCluster"], ascending=False).head(10)
 
         # Plot chart with top 10 undervalued stocks
         fig = px.bar(
@@ -342,7 +189,7 @@ with tab1:
         st.plotly_chart(fig, use_container_width=True)
 
     with bottom_10_section:
-        bottom_10 = cluster_peers[["shortName", "PeersRelativeDiffCluster"]].dropna(subset="PeersRelativeDiffCluster").sort_values(by=["PeersRelativeDiffCluster"], ascending=True).head(10)
+        bottom_10 = peers[["shortName", "PeersRelativeDiffCluster"]].dropna(subset="PeersRelativeDiffCluster").sort_values(by=["PeersRelativeDiffCluster"], ascending=True).head(10)
 
         # Plot chart with top 10 undervalued stocks
         fig = px.bar(
@@ -359,8 +206,9 @@ with tab1:
 # Sector multiples
 
 with tab2:
-    # Order multiples
-    mean_cluster_multiples = mean_cluster_multiples.sort_values(by="cluster", ascending=False)
+    # Load data
+    cluster_multiples = get_cluster_multiples()
+    cluster_multiples = cluster_multiples.sort_values(by="cluster", ascending=False)
 
     # Section title
     st.write("""## Mean cluster multiples""")
@@ -368,16 +216,16 @@ with tab2:
     price_to_book_col, enterprise_to_revenue_col, enterprise_to_ebitda_col, trailing_PE_col = st.columns([1, 1, 1, 1])
 
     with price_to_book_col:
-        fig = create_bar_chart(mean_cluster_multiples, "MeanClusterPriceToBook", "Price to Book")                
+        fig = create_bar_chart(cluster_multiples, "MeanClusterPriceToBook", "Price to Book")                
         st.plotly_chart(fig, use_container_width=True)
     with enterprise_to_revenue_col:
-        fig = create_bar_chart(mean_cluster_multiples, "MeanClusterEnterpriseToRevenue", "Enterprise to Revenue")                
+        fig = create_bar_chart(cluster_multiples, "MeanClusterEnterpriseToRevenue", "Enterprise to Revenue")                
         st.plotly_chart(fig, use_container_width=True)
     with enterprise_to_ebitda_col:
-        fig = create_bar_chart(mean_cluster_multiples, "MeanClusterEnterpriseToEbitda", "Enterprise to Ebitda")                
+        fig = create_bar_chart(cluster_multiples, "MeanClusterEnterpriseToEbitda", "Enterprise to Ebitda")                
         st.plotly_chart(fig, use_container_width=True)
     with trailing_PE_col:
-        fig = create_bar_chart(mean_cluster_multiples, "MeanClusterTrailingPE", "Trailing PE")                
+        fig = create_bar_chart(cluster_multiples, "MeanClusterTrailingPE", "Trailing PE")                
         st.plotly_chart(fig, use_container_width=True)
 
 # ---------------------------------------------------------------------------------------------------
@@ -385,9 +233,10 @@ with tab2:
 
 with tab3:
     # Load datas from current selection
-    selected_peers = cluster_peers[cluster_peers['symbol'] == ticker_selection]
-    selected_cluster_multiples = mean_cluster_multiples[mean_cluster_multiples["cluster"] == selected_peers['cluster'].values[0]].drop("cluster", axis=1)
-
+    selected_peers = peers[peers['symbol'] == ticker_selection]
+    cluster_multiples = get_cluster_multiples()
+    selected_cluster_multiples = cluster_multiples[cluster_multiples["cluster"] == selected_peers['cluster'].values[0]].drop("cluster", axis=1)
+    
     x_axis_peers = ['stockPriceBookCluster', 'stockPriceRevenueCluster', 'stockPriceEbitdaCluster', 'stockPriceEarningsCluster']
     current_multiples = selected_peers[x_axis_peers]
 
