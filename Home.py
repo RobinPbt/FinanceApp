@@ -53,22 +53,72 @@ def get_synthesis():
             ) l
         LEFT JOIN estimates_diff AS s ON s."symbol" = l."symbol" AND s."date" = l."last_date"
         ),
-        last_peers_valuation
+        last_sector_peers_valuation
         AS
         (
         SELECT 
-            p."symbol",
-            p."PeersAbsoluteDiff",
-            p."PeersRelativeDiff",
-            p."PeersConfidence"
+            sp."symbol",
+            sp."PeersAbsoluteDiffSector",
+            sp."PeersRelativeDiffSector",
+            sp."PeersConfidenceSector"
         FROM (
             SELECT
                 "symbol",
                 MAX("date") AS last_date
-            FROM peers_valuation
+            FROM sector_peers_valuation
             GROUP BY "symbol"
-            ) la
-        LEFT JOIN peers_valuation AS p ON p."symbol" = la."symbol" AND p."date" = la."last_date"
+            ) lsp
+        LEFT JOIN sector_peers_valuation AS sp ON sp."symbol" = lsp."symbol" AND sp."date" = lsp."last_date"
+        ),
+        last_clustering_peers_valuation
+        AS
+        (
+        SELECT 
+            cp."symbol",
+            cp."PeersAbsoluteDiffCluster",
+            cp."PeersRelativeDiffCluster",
+            cp."PeersConfidenceCluster"
+        FROM (
+            SELECT
+                "symbol",
+                MAX("date") AS last_date
+            FROM clustering_peers_valuation
+            GROUP BY "symbol"
+            ) lcp
+        LEFT JOIN clustering_peers_valuation AS cp ON cp."symbol" = lcp."symbol" AND cp."date" = lcp."last_date"
+        ),
+        last_regression
+        AS
+        (
+        SELECT 
+            r."symbol",
+            r."RegressionAbsoluteDiff",
+            r."RegressionRelativeDiff"
+        FROM (
+            SELECT
+                "symbol",
+                MAX("date") AS last_date
+            FROM regression_ML
+            GROUP BY "symbol"
+            ) lr
+        LEFT JOIN regression_ML AS r ON r."symbol" = lr."symbol" AND r."date" = lr."last_date"
+        ),
+        last_synthesis
+        AS
+        (
+        SELECT 
+            sy."symbol",
+            sy."GlobalMeanStockPrice",
+            sy."GlobalAbsoluteDiff",
+            sy."GlobalRelativeDiff"
+        FROM (
+            SELECT
+                "symbol",
+                MAX("date") AS last_date
+            FROM synthesis
+            GROUP BY "symbol"
+            ) lsy
+        LEFT JOIN synthesis AS sy ON sy."symbol" = lsy."symbol" AND sy."date" = lsy."last_date"
         )
         SELECT
             g."symbol", g."shortName",
@@ -77,19 +127,30 @@ def get_synthesis():
             ef."EstimatesAbsoluteDiff",
             ef."EstimatesRelativeDiff",
             ef."EstimatesConfidence",
-            pv."PeersAbsoluteDiff",
-            pv."PeersRelativeDiff",
-            pv."PeersConfidence"
+            spv."PeersAbsoluteDiffSector",
+            spv."PeersRelativeDiffSector",
+            spv."PeersConfidenceSector",
+            cpv."PeersAbsoluteDiffCluster",
+            cpv."PeersRelativeDiffCluster",
+            cpv."PeersConfidenceCluster",
+            reg."RegressionAbsoluteDiff",
+            reg."RegressionRelativeDiff",
+            synt."GlobalMeanStockPrice",
+            synt."GlobalAbsoluteDiff",
+            synt."GlobalRelativeDiff"
         FROM general_information AS g
         LEFT JOIN last_stock_prices p ON g."symbol" = p."symbol"
         LEFT JOIN last_estimates_diff ef ON g."symbol" = ef."symbol"
-        LEFT JOIN last_peers_valuation pv ON g."symbol" = pv."symbol"
-        ORDER BY "EstimatesRelativeDiff" DESC;
+        LEFT JOIN last_sector_peers_valuation spv ON g."symbol" = spv."symbol"
+        LEFT JOIN last_clustering_peers_valuation cpv ON g."symbol" = cpv."symbol"
+        LEFT JOIN last_regression reg ON g."symbol" = reg."symbol"
+        LEFT JOIN last_synthesis synt ON g."symbol" = synt."symbol"
+        ORDER BY "GlobalRelativeDiff" DESC;
     """
     
     query_result = con.query(query)
-    global_estimates = pd.DataFrame(query_result)
-    return global_estimates
+    global_results = pd.DataFrame(query_result)
+    return global_results
 
 # -----------------------------Define sidebar -------------------------------------------
 

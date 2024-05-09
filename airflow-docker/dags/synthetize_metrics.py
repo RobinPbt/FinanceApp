@@ -70,38 +70,163 @@ def synthetize_metrics():
         conn = postgres_hook.get_conn()
         cur = conn.cursor()
 
-        # Query valuation from each method and compute the mean and differences with current stock price
+        # Query necessary tables
+        # query = """
+        #     WITH last_sector_peers_valuation
+        #     AS
+        #     (
+        #     SELECT 
+        #         sp."symbol",
+        #         sp."PeersMeanStockPriceSector"
+        #     FROM (
+        #         SELECT
+        #             "symbol",
+        #             MAX("date") AS last_date
+        #         FROM sector_peers_valuation
+        #         GROUP BY "symbol"
+        #         ) lsp
+        #     LEFT JOIN sector_peers_valuation AS sp ON sp."symbol" = lsp."symbol" AND sp."date" = lsp."last_date"
+        #     ),
+        #     last_clustering_peers_valuation
+        #     AS
+        #     (
+        #     SELECT 
+        #         cp."symbol",
+        #         cp."PeersMeanStockPriceCluster"
+        #     FROM (
+        #         SELECT
+        #             "symbol",
+        #             MAX("date") AS last_date
+        #         FROM clustering_peers_valuation
+        #         GROUP BY "symbol"
+        #         ) lcp
+        #     LEFT JOIN clustering_peers_valuation AS cp ON cp."symbol" = lcp."symbol" AND cp."date" = lcp."last_date"
+        #     ),
+        #     last_regression
+        #     AS
+        #     (
+        #     SELECT 
+        #         r."symbol",
+        #         r."RegressionPrediction"
+        #     FROM (
+        #         SELECT
+        #             "symbol",
+        #             MAX("date") AS last_date
+        #         FROM regression_ML
+        #         GROUP BY "symbol"
+        #         ) lr
+        #     LEFT JOIN regression_ML AS r ON r."symbol" = lr."symbol" AND r."date" = lr."last_date"
+        #     )
+        #     SELECT
+        #         p."symbol",
+        #         p."date",
+        #         ((ef."targetMedianPrice" + spv."PeersMeanStockPriceSector" + cpv."PeersMeanStockPriceCluster" + re."RegressionPrediction") / 4) AS "GlobalMeanStockPrice",
+        #         (((ef."targetMedianPrice" + spv."PeersMeanStockPriceSector" + cpv."PeersMeanStockPriceCluster" + re."RegressionPrediction") / 4) - p."close") AS "GlobalAbsoluteDiff",
+        #         ((((ef."targetMedianPrice" + spv."PeersMeanStockPriceSector" + cpv."PeersMeanStockPriceCluster" + re."RegressionPrediction") / 4) - p."close") / p."close") AS "GlobalRelativeDiff"
+        #     FROM last_stock_prices AS p
+        #     LEFT JOIN last_estimates ef ON p."symbol" = ef."symbol"
+        #     LEFT JOIN last_sector_peers_valuation spv ON p."symbol" = spv."symbol"
+        #     LEFT JOIN last_clustering_peers_valuation cpv ON p."symbol" = cpv."symbol"
+        #     LEFT JOIN last_regression re ON p."symbol" = re."symbol";
+        # """
+
+        # cur.execute(query)
+        # colnames = [desc[0] for desc in cur.description]
+        # query_result = cur.fetchall()
+        # last_sector_peers_valuation = pd.DataFrame(query_result, columns=colnames)
+
         query = """
-            WITH last_peers_valuation
-            AS
-            (
             SELECT 
-                p."symbol",
-                p."PeersMeanStockPrice"
+                sp."symbol",
+                sp."PeersMeanStockPriceSector"
             FROM (
                 SELECT
                     "symbol",
                     MAX("date") AS last_date
-                FROM peers_valuation
+                FROM sector_peers_valuation
                 GROUP BY "symbol"
-                ) la
-            LEFT JOIN peers_valuation AS p ON p."symbol" = la."symbol" AND p."date" = la."last_date"
-            )
-            SELECT
-                p."symbol",
-                p."date",
-                ((ef."targetMedianPrice" + pv."PeersMeanStockPrice") / 2) AS "GlobalMeanStockPrice",
-                (((ef."targetMedianPrice" + pv."PeersMeanStockPrice") / 2) - p."close") AS "GlobalAbsoluteDiff",
-                ((((ef."targetMedianPrice" + pv."PeersMeanStockPrice") / 2) - p."close") / p."close") AS "GlobalRelativeDiff"
-            FROM last_stock_prices AS p
-            LEFT JOIN last_estimates ef ON p."symbol" = ef."symbol"
-            LEFT JOIN last_peers_valuation pv ON p."symbol" = pv."symbol";
+                ) lsp
+            LEFT JOIN sector_peers_valuation AS sp ON sp."symbol" = lsp."symbol" AND sp."date" = lsp."last_date"
         """
 
         cur.execute(query)
         colnames = [desc[0] for desc in cur.description]
         query_result = cur.fetchall()
-        synthesis = pd.DataFrame(query_result, columns=colnames)
+        last_sector_peers_valuation = pd.DataFrame(query_result, columns=colnames)
+
+        query = """
+            SELECT 
+                cp."symbol",
+                cp."PeersMeanStockPriceCluster"
+            FROM (
+                SELECT
+                    "symbol",
+                    MAX("date") AS last_date
+                FROM clustering_peers_valuation
+                GROUP BY "symbol"
+                ) lcp
+            LEFT JOIN clustering_peers_valuation AS cp ON cp."symbol" = lcp."symbol" AND cp."date" = lcp."last_date"
+        """
+
+        cur.execute(query)
+        colnames = [desc[0] for desc in cur.description]
+        query_result = cur.fetchall()
+        last_clustering_peers_valuation = pd.DataFrame(query_result, columns=colnames)
+
+        query = """
+            SELECT 
+                r."symbol",
+                r."RegressionPrediction"
+            FROM (
+                SELECT
+                    "symbol",
+                    MAX("date") AS last_date
+                FROM regression_ML
+                GROUP BY "symbol"
+                ) lr
+            LEFT JOIN regression_ML AS r ON r."symbol" = lr."symbol" AND r."date" = lr."last_date"
+        """
+
+        cur.execute(query)
+        colnames = [desc[0] for desc in cur.description]
+        query_result = cur.fetchall()
+        last_regression = pd.DataFrame(query_result, columns=colnames)
+
+        query = """
+            SELECT 
+                "symbol",
+                "date",
+                "close"
+            FROM last_stock_prices
+        """
+
+        cur.execute(query)
+        colnames = [desc[0] for desc in cur.description]
+        query_result = cur.fetchall()
+        last_stock_prices = pd.DataFrame(query_result, columns=colnames)
+
+        query = """
+            SELECT
+                "symbol",
+                "targetMedianPrice"
+            FROM last_estimates
+        """
+
+        cur.execute(query)
+        colnames = [desc[0] for desc in cur.description]
+        query_result = cur.fetchall()
+        last_estimates = pd.DataFrame(query_result, columns=colnames)
+
+        # Transform data
+        synthesis = pd.DataFrame(data=last_stock_prices)
+        synthesis = pd.merge(synthesis, last_estimates, on="symbol", how="left")
+        synthesis = pd.merge(synthesis, last_regression, on="symbol", how="left")
+        synthesis = pd.merge(synthesis, last_clustering_peers_valuation, on="symbol", how="left")
+        synthesis = pd.merge(synthesis, last_sector_peers_valuation, on="symbol", how="left")
+        synthesis["GlobalMeanStockPrice"] = synthesis.apply(lambda x: np.nanmean([x["targetMedianPrice"], x["PeersMeanStockPriceSector"], x["PeersMeanStockPriceCluster"], x["RegressionPrediction"]]), axis=1)
+        synthesis["GlobalAbsoluteDiff"] = synthesis["GlobalMeanStockPrice"] - synthesis["close"]
+        synthesis["GlobalRelativeDiff"] = synthesis["GlobalAbsoluteDiff"] / synthesis["close"]
+        synthesis = synthesis[["symbol", "date", "GlobalMeanStockPrice", "GlobalAbsoluteDiff", "GlobalRelativeDiff"]]
        
         # Save results in csv files
         files_dir_path = "/opt/airflow/dags/files/"
