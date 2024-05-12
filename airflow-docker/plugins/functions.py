@@ -4,9 +4,8 @@ import numpy as np
 import datetime as dt
 import pytz
 
-
-
-# ----------------------------- Extraction API calls functions ---------------------------------
+# ---------------------------------------------------------------------------------------------------
+# Extraction API calls functions
 
 def extract_data_single(query_result, selected_items, query_time=None):
     """
@@ -99,7 +98,8 @@ def extract_data_multiple(query_result_list, selected_items_list, query_time=Non
     
     return combined_extract
 
-# ----------------------------- Valuation functions ---------------------------------
+# ---------------------------------------------------------------------------------------------------
+# Peers valuation functions
 
 def compute_mean_multiples(multiples, groupby_col):
     """Compute mean valuation multiples on a groupping column for a given set of multiples"""
@@ -256,7 +256,8 @@ def peers_valuation(groupby_col, financials, multiples, last_valuations, stock_p
 
     return mean_multiples, peers
 
-# ----------------------------- Estimates functions ---------------------------------
+# ---------------------------------------------------------------------------------------------------
+# Estimates functions
 
 def target_confidence_estimates(numberOfAnalystOpinions):
     """Define a confidence level on the target price --> basic rule for now on number of analysts"""
@@ -274,3 +275,68 @@ def target_confidence_estimates(numberOfAnalystOpinions):
         confidence = "High"
         
     return confidence
+
+# ---------------------------------------------------------------------------------------------------
+# Financials extraction functions
+
+def to_datetime(date):
+    """
+    Converts a numpy datetime64 object to a python datetime object 
+    Input:
+      date - a np.datetime64 object
+    Output:
+      DATE - a python datetime object
+    """
+    timestamp = ((date - np.datetime64('1970-01-01T00:00:00')) / np.timedelta64(1, 's'))
+    
+    return dt.datetime.fromtimestamp(timestamp).date()
+
+def revenue_growth(row, historical_financials):
+    
+    row_symbol = row['symbol']
+    row_revenue = row['TotalRevenue']
+    symbol_financials = historical_financials[historical_financials['symbol'] == row_symbol]
+    one_year = row['asOfDate'] - dt.timedelta(days=365)
+    one_year_plus = row['asOfDate'] - dt.timedelta(days=366)
+    
+    if one_year in symbol_financials['asOfDate'].values:    
+        last_year_revenue = symbol_financials[symbol_financials['asOfDate'] == one_year]['TotalRevenue'].values[0]
+        return (row_revenue - last_year_revenue) / last_year_revenue
+    
+    elif one_year_plus in symbol_financials['asOfDate'].values:
+        last_year_revenue = symbol_financials[symbol_financials['asOfDate'] == one_year_plus]['TotalRevenue'].values[0]
+        return (row_revenue - last_year_revenue) / last_year_revenue
+    
+    else:
+        return None
+    
+def compute_financial_ratios(historical_financials):
+
+    historical_financials['asOfDate'] = historical_financials['asOfDate'].apply(lambda x: to_datetime(x))
+
+    historical_financials["RevenueGrowth"] = historical_financials.apply(lambda x: revenue_growth(x, historical_financials), axis=1)
+    historical_financials["GrossMargin"] = historical_financials["GrossProfit"] / historical_financials["TotalRevenue"]
+    historical_financials["EBITDAMargin"] = historical_financials["EBITDA"] / historical_financials["TotalRevenue"]
+    historical_financials["EBITMargin"] = historical_financials["EBIT"] / historical_financials["TotalRevenue"]
+    historical_financials["PretaxIncomeMargin"] = historical_financials["PretaxIncome"] / historical_financials["TotalRevenue"]
+    historical_financials["NetIncomeMargin"] = historical_financials["NetIncome"] / historical_financials["TotalRevenue"]
+
+    historical_financials["NetDebt"] = historical_financials["TotalDebt"] - historical_financials["CashAndCashEquivalents"]
+    historical_financials["Leverage"] = historical_financials.apply(lambda x: (x["NetDebt"] / x["EBITDA"]) if x["NetDebt"] > 0 else 0, axis=1) # Ou sinon levier négatif ?
+
+    historical_financials["PercentageCapitalExpenditureRevenue"] = historical_financials["CapitalExpenditure"] / historical_financials["TotalRevenue"]
+
+    historical_financials["ReturnOnEquity"] = historical_financials["NetIncome"] / historical_financials["TotalEquityGrossMinorityInterest"]
+    historical_financials["ReturnOnAssets"] = historical_financials["NetIncome"] / historical_financials["TotalAssets"]
+
+    historical_financials["FreeCashFlowMargin"] = historical_financials["FreeCashFlow"] / historical_financials["TotalRevenue"]
+    historical_financials["ConversionEBITDAFreeCashFlow"] = historical_financials["FreeCashFlow"] / historical_financials["EBITDA"]
+    historical_financials["ConversionNetIncomeFreeCashFlow"] = historical_financials["FreeCashFlow"] / historical_financials["NetIncome"]
+    historical_financials["ConversionEBITDACash"] = historical_financials["ChangesInCash"] / historical_financials["EBITDA"]
+    historical_financials["ConversionNetIncomeCash"] = historical_financials["ChangesInCash"] / historical_financials["NetIncome"]
+
+    historical_financials["NetIncomePerShare"] = historical_financials["NetIncome"] / historical_financials["OrdinarySharesNumber"]
+    historical_financials["FreeCashFlowPerShare"] = historical_financials["FreeCashFlow"] / historical_financials["OrdinarySharesNumber"]
+    historical_financials["NetAssetPerShare"] = historical_financials["TotalEquityGrossMinorityInterest"] / historical_financials["OrdinarySharesNumber"]
+
+    return historical_financials
