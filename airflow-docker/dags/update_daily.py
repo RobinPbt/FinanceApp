@@ -118,17 +118,12 @@ def update_db_daily():
             CREATE TABLE IF NOT EXISTS valuations_daily (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
-                "enterpriseValue" FLOAT,
-                "forwardPE" FLOAT,
-                "bookValue" FLOAT,
-                "priceToBook" FLOAT,
-                "enterpriseToRevenue" FLOAT,
-                "enterpriseToEbitda" FLOAT,
-                "beta" FLOAT,
-                "pegRatio" FLOAT,
-                "trailingPE" FLOAT,
-                "marketCap" FLOAT,
-                "priceToSalesTrailing12Months" FLOAT,
+                "MarketCap" FLOAT,
+                "EnterpriseValue" FLOAT,
+                "EnterpriseValueRevenueMultiple" FLOAT,
+                "EnterpriseValueEBITDAMultiple" FLOAT,
+                "PriceToBookRatio" FLOAT,
+                "PriceEarningsRatio" FLOAT,
                 PRIMARY KEY ("symbol", "date")
             );""",
     )
@@ -141,20 +136,60 @@ def update_db_daily():
             CREATE TABLE last_valuations (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
-                "enterpriseValue" FLOAT,
-                "forwardPE" FLOAT,
-                "bookValue" FLOAT,
-                "priceToBook" FLOAT,
-                "enterpriseToRevenue" FLOAT,
-                "enterpriseToEbitda" FLOAT,
-                "beta" FLOAT,
-                "pegRatio" FLOAT,
-                "trailingPE" FLOAT,
-                "marketCap" FLOAT,
-                "priceToSalesTrailing12Months" FLOAT,
+                "MarketCap" FLOAT,
+                "EnterpriseValue" FLOAT,
+                "EnterpriseValueRevenueMultiple" FLOAT,
+                "EnterpriseValueEBITDAMultiple" FLOAT,
+                "PriceToBookRatio" FLOAT,
+                "PriceEarningsRatio" FLOAT,
                 PRIMARY KEY ("symbol", "date")
             );""",
     )
+
+    # create_valuations_daily_table = PostgresOperator(
+    #     task_id="create_valuations_daily_table",
+    #     postgres_conn_id="finapp_postgres_conn",
+    #     sql="""
+    #         CREATE TABLE IF NOT EXISTS valuations_daily (
+    #             "symbol" TEXT,
+    #             "date" TIMESTAMP,
+    #             "enterpriseValue" FLOAT,
+    #             "forwardPE" FLOAT,
+    #             "bookValue" FLOAT,
+    #             "priceToBook" FLOAT,
+    #             "enterpriseToRevenue" FLOAT,
+    #             "enterpriseToEbitda" FLOAT,
+    #             "beta" FLOAT,
+    #             "pegRatio" FLOAT,
+    #             "trailingPE" FLOAT,
+    #             "marketCap" FLOAT,
+    #             "priceToSalesTrailing12Months" FLOAT,
+    #             PRIMARY KEY ("symbol", "date")
+    #         );""",
+    # )
+
+    # create_last_valuations_table = PostgresOperator(
+    #     task_id="create_last_valuations_table",
+    #     postgres_conn_id="finapp_postgres_conn",
+    #     sql="""
+    #         DROP TABLE IF EXISTS last_valuations;
+    #         CREATE TABLE last_valuations (
+    #             "symbol" TEXT,
+    #             "date" TIMESTAMP,
+    #             "enterpriseValue" FLOAT,
+    #             "forwardPE" FLOAT,
+    #             "bookValue" FLOAT,
+    #             "priceToBook" FLOAT,
+    #             "enterpriseToRevenue" FLOAT,
+    #             "enterpriseToEbitda" FLOAT,
+    #             "beta" FLOAT,
+    #             "pegRatio" FLOAT,
+    #             "trailingPE" FLOAT,
+    #             "marketCap" FLOAT,
+    #             "priceToSalesTrailing12Months" FLOAT,
+    #             PRIMARY KEY ("symbol", "date")
+    #         );""",
+    # )
 
     @task(task_id="download_data")
     def download_data():
@@ -179,18 +214,39 @@ def update_db_daily():
         selected_items = ['targetHighPrice', 'targetLowPrice', 'targetMeanPrice', 'targetMedianPrice', 'recommendationMean', 'recommendationKey', 'numberOfAnalystOpinions']
         last_estimates = extract_data_single(query_result, selected_items, query_time=query_time)
 
-        
-        # Request API to get last valuations
-        query_result_1 = tickers.key_stats
-        selected_items_1 = ['enterpriseValue', 'forwardPE', 'bookValue', 'priceToBook', 'enterpriseToRevenue', 'enterpriseToEbitda', 'beta', 'pegRatio']
+        # Request financials 
+        postgres_hook = PostgresHook(postgres_conn_id="finapp_postgres_conn")
+        conn = postgres_hook.get_conn()
+        cur = conn.cursor()
 
-        query_result_2 = tickers.summary_detail
-        selected_items_2 = ['trailingPE', 'marketCap', 'priceToSalesTrailing12Months']
+        query = """
+            SELECT *
+            FROM historical_financials;
+        """
 
-        query_result_list = [query_result_1, query_result_2]
-        selected_items_list = [selected_items_1, selected_items_2]
+        cur.execute(query)
+        colnames = [desc[0] for desc in cur.description]
+        query_result = cur.fetchall()
+        historical_financials = pd.DataFrame(query_result, columns=colnames)
+        historical_financials['date'] = historical_financials['date'].apply(lambda x: to_datetime(x))
 
-        valuations = extract_data_multiple(query_result_list, selected_items_list, query_time=query_time)
+        # Compute valuations based on last available prices
+        select_last_prices = last_prices[['symbol', 'date', 'adjclose']]
+        select_last_prices['date'] = select_last_prices['date'].apply(lambda x: x.date()) # Convert timestamp to date
+        daily_valuations = select_last_prices.apply(lambda x: daily_valuation(x, historical_financials), axis=1) # Apply function to compute valuation based on last stock price and financials
+        daily_valuations.drop('adjclose', axis=1, inplace=True) # Drop data already in other tables
+        daily_valuations.dropna(axis=0, thresh=6, inplace=True) # Drop rows with NaN on each values except symbol and date (i.e. 6 values)
+
+        # query_result_1 = tickers.key_stats
+        # selected_items_1 = ['enterpriseValue', 'forwardPE', 'bookValue', 'priceToBook', 'enterpriseToRevenue', 'enterpriseToEbitda', 'beta', 'pegRatio']
+
+        # query_result_2 = tickers.summary_detail
+        # selected_items_2 = ['trailingPE', 'marketCap', 'priceToSalesTrailing12Months']
+
+        # query_result_list = [query_result_1, query_result_2]
+        # selected_items_list = [selected_items_1, selected_items_2]
+
+        # valuations = extract_data_multiple(query_result_list, selected_items_list, query_time=query_time)
 
         # Save results in csv files
         files_dir_path = "/opt/airflow/dags/files/"
@@ -204,8 +260,8 @@ def update_db_daily():
         estimates_file_path = os.path.join(files_dir_path, "daily_estimates.csv")
         last_estimates.to_csv(estimates_file_path, index=False)
 
-        valuations_file_path = os.path.join(files_dir_path, "valuations.csv")
-        valuations.to_csv(valuations_file_path, index=False)
+        daily_valuations_file_path = os.path.join(files_dir_path, "daily_valuations.csv")
+        daily_valuations.to_csv(daily_valuations_file_path, index=False)
     
     @task(task_id="update_db")
     def update_db():       
@@ -229,8 +285,8 @@ def update_db_daily():
                 file,
             )
 
-        valuations_file_path = "/opt/airflow/dags/files/valuations.csv"
-        with open(valuations_file_path, "r") as file:
+        daily_valuations_file_path = "/opt/airflow/dags/files/daily_valuations.csv"
+        with open(daily_valuations_file_path, "r") as file:
             cur.copy_expert(
                 "COPY last_valuations FROM STDIN WITH CSV HEADER DELIMITER AS ',' QUOTE '\"'",
                 file,

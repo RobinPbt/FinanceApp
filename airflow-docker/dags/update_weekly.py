@@ -327,7 +327,10 @@ def update_db_weekly():
 
         # ---------------------------------------------------------------------------------------------------
         # Request API to get historical financials
-        PL = tickers.income_statement()
+
+        # FOR NOW WE USE ONLY FY DATAS BECAUSE TOO MANY MISSING DATAS IN QUARTERS / SEMESTERS, TO BE IMPROVED WITH OTHER EXTERNAL DATA
+
+        PL = tickers.income_statement(trailing=False)
         PL_items = [
             "asOfDate",
             "periodType",
@@ -341,7 +344,7 @@ def update_db_weekly():
         ]
         PL = PL[PL_items]
 
-        BS = tickers.balance_sheet()
+        BS = tickers.balance_sheet(trailing=False)
         BS_items = [
             "asOfDate",
             "periodType",
@@ -358,7 +361,7 @@ def update_db_weekly():
         ]
         BS = BS[BS_items]
 
-        CF = tickers.cash_flow()
+        CF = tickers.cash_flow(trailing=False)
         CF_items = [
             "asOfDate",
             "periodType",
@@ -462,7 +465,7 @@ def update_db_weekly():
             DROP TABLE IF EXISTS temp_historical_financials;
         """
 
-        cur.execute(query_financials)
+        # cur.execute(query_financials)
         cur.execute(query_dividends)
         cur.execute(query_historical_financials)
         conn.commit()

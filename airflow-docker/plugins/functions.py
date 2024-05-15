@@ -107,17 +107,17 @@ def compute_mean_multiples(multiples, groupby_col):
     capitalized_groupby_col = groupby_col.capitalize()
 
     mean_multiples = multiples.groupby(by=groupby_col)[[
-        'priceToBook', 
-        'enterpriseToRevenue', 
-        'enterpriseToEbitda', 
-        'trailingPE'
+        'PriceToBookRatio', 
+        'EnterpriseValueRevenueMultiple', 
+        'EnterpriseValueEBITDAMultiple', 
+        'PriceEarningsRatio'
     ]].mean()
     
     mean_multiples.columns = [
-        f'Mean{capitalized_groupby_col}PriceToBook', 
-        f'Mean{capitalized_groupby_col}EnterpriseToRevenue', 
-        f'Mean{capitalized_groupby_col}EnterpriseToEbitda', 
-        f'Mean{capitalized_groupby_col}TrailingPE'
+        f'Mean{capitalized_groupby_col}PriceToBookRatio', 
+        f'Mean{capitalized_groupby_col}EnterpriseValueRevenueMultiple', 
+        f'Mean{capitalized_groupby_col}EnterpriseValueEBITDAMultiple', 
+        f'Mean{capitalized_groupby_col}PriceEarningsRatio'
     ]
     
     return mean_multiples
@@ -181,7 +181,7 @@ def target_confidence_peers(relative_std_stock_price):
         
     return confidence
 
-def peers_valuation(groupby_col, financials, multiples, last_valuations, stock_price):
+def peers_valuation(groupby_col, financials, valuations, stock_price):
     """
     For a set of companies information (financials, multiples) perform a comparable valuation :
     - Compute mean multiples by the column defined in groupby_col
@@ -195,30 +195,30 @@ def peers_valuation(groupby_col, financials, multiples, last_valuations, stock_p
     capitalized_groupby_col = groupby_col.capitalize()
 
     # Compure mean sector multiples
-    mean_multiples = compute_mean_multiples(multiples, groupby_col)
+    mean_multiples = compute_mean_multiples(valuations, groupby_col)
 
     # Select and Join
     # peers = pd.merge(multiples[['symbol', 'shortName', groupby_col]], financials, on='symbol')
-    peers = pd.merge(multiples, financials, on='symbol')
-    peers = pd.merge(peers, last_valuations[['symbol', 'bookValue', 'BridgeEnterpriseValueMarketCap', 'sharesOutstanding']], on='symbol')
+    peers = pd.merge(valuations, financials, on='symbol')
+    # peers = pd.merge(peers, last_valuations[['symbol', 'bookValue', 'BridgeEnterpriseValueMarketCap', 'sharesOutstanding']], on='symbol')
     peers = pd.merge(peers, mean_multiples, on=groupby_col)
     peers = pd.merge(peers, stock_price, on='symbol')
     
     # Apply valuation functions
-    peers[f'marketCapRevenue{capitalized_groupby_col}'] = peers.apply(lambda x: revenue_valuation(x[f'Mean{capitalized_groupby_col}EnterpriseToRevenue'], x['totalRevenue'], x['BridgeEnterpriseValueMarketCap']), axis=1)
-    peers[f'marketCapEbitda{capitalized_groupby_col}'] = peers.apply(lambda x: ebitda_valuation(x[f'Mean{capitalized_groupby_col}EnterpriseToEbitda'], x['ebitda'], x['BridgeEnterpriseValueMarketCap']), axis=1)
-    peers[f'stockPriceBook{capitalized_groupby_col}'] = peers.apply(lambda x: book_valuation(x[f'Mean{capitalized_groupby_col}PriceToBook'], x['bookValue'], x['BridgeEnterpriseValueMarketCap']), axis=1)
-    peers[f'marketCapEarnings{capitalized_groupby_col}'] = peers.apply(lambda x: earnings_valuation(x[f'Mean{capitalized_groupby_col}TrailingPE'], x['earnings'], x['BridgeEnterpriseValueMarketCap']), axis=1)
+    peers[f'MarketCapRevenue{capitalized_groupby_col}'] = peers.apply(lambda x: revenue_valuation(x[f'Mean{capitalized_groupby_col}EnterpriseValueRevenueMultiple'], x['TotalRevenue'], x['NetDebt']), axis=1)
+    peers[f'MarketCapEbitda{capitalized_groupby_col}'] = peers.apply(lambda x: ebitda_valuation(x[f'Mean{capitalized_groupby_col}EnterpriseValueEBITDAMultiple'], x['EBITDA'], x['NetDebt']), axis=1)
+    peers[f'StockPriceBook{capitalized_groupby_col}'] = peers.apply(lambda x: book_valuation(x[f'Mean{capitalized_groupby_col}PriceToBookRatio'], x['TotalEquityGrossMinorityInterest'], x['NetDebt']), axis=1)
+    peers[f'MarketCapEarnings{capitalized_groupby_col}'] = peers.apply(lambda x: earnings_valuation(x[f'Mean{capitalized_groupby_col}PriceEarningsRatio'], x['NetIncome'], x['NetDebt']), axis=1)
 
     # Convert market capitalizations into stock prices (or the other way round)
-    peers[f'stockPriceRevenue{capitalized_groupby_col}'] = peers[f'marketCapRevenue{capitalized_groupby_col}'] / peers['sharesOutstanding']
-    peers[f'stockPriceEbitda{capitalized_groupby_col}'] = peers[f'marketCapEbitda{capitalized_groupby_col}'] / peers['sharesOutstanding']
-    peers[f'stockPriceEarnings{capitalized_groupby_col}'] = peers[f'marketCapEarnings{capitalized_groupby_col}'] / peers['sharesOutstanding']
-    peers[f'marketCapBook{capitalized_groupby_col}'] = peers[f'stockPriceBook{capitalized_groupby_col}'] * peers['sharesOutstanding']
+    peers[f'StockPriceRevenue{capitalized_groupby_col}'] = peers[f'MarketCapRevenue{capitalized_groupby_col}'] / peers['OrdinarySharesNumber']
+    peers[f'StockPriceEbitda{capitalized_groupby_col}'] = peers[f'MarketCapEbitda{capitalized_groupby_col}'] / peers['OrdinarySharesNumber']
+    peers[f'StockPriceEarnings{capitalized_groupby_col}'] = peers[f'MarketCapEarnings{capitalized_groupby_col}'] / peers['OrdinarySharesNumber']
+    peers[f'MarketCapBook{capitalized_groupby_col}'] = peers[f'StockPriceBook{capitalized_groupby_col}'] * peers['OrdinarySharesNumber']
     
     # Compute mean stock price over all valuation approaches
-    peers[f'PeersMeanStockPrice{capitalized_groupby_col}'] = peers.apply(lambda x: np.nanmean([x[f'stockPriceBook{capitalized_groupby_col}'], x[f'stockPriceRevenue{capitalized_groupby_col}'], x[f'stockPriceEbitda{capitalized_groupby_col}'], x[f'stockPriceEarnings{capitalized_groupby_col}']]), axis=1)
-    peers[f'PeersRelativeStdStockPrice{capitalized_groupby_col}'] = peers.apply(lambda x: relative_std([x[f'stockPriceBook{capitalized_groupby_col}'], x[f'stockPriceRevenue{capitalized_groupby_col}'], x[f'stockPriceEbitda{capitalized_groupby_col}'], x[f'stockPriceEarnings{capitalized_groupby_col}']]), axis=1)
+    peers[f'PeersMeanStockPrice{capitalized_groupby_col}'] = peers.apply(lambda x: np.nanmean([x[f'StockPriceBook{capitalized_groupby_col}'], x[f'StockPriceRevenue{capitalized_groupby_col}'], x[f'StockPriceEbitda{capitalized_groupby_col}'], x[f'StockPriceEarnings{capitalized_groupby_col}']]), axis=1)
+    peers[f'PeersRelativeStdStockPrice{capitalized_groupby_col}'] = peers.apply(lambda x: relative_std([x[f'StockPriceBook{capitalized_groupby_col}'], x[f'StockPriceRevenue{capitalized_groupby_col}'], x[f'StockPriceEbitda{capitalized_groupby_col}'], x[f'StockPriceEarnings{capitalized_groupby_col}']]), axis=1)
     
     # Compute differential with actual stock prices
     peers[f'PeersAbsoluteDiff{capitalized_groupby_col}'] = peers[f'PeersMeanStockPrice{capitalized_groupby_col}'] - peers['lastPrice']
@@ -231,22 +231,15 @@ def peers_valuation(groupby_col, financials, multiples, last_valuations, stock_p
     peers = peers[[
         'symbol',
         'date',
-        # 'shortName',
         groupby_col,
-        # 'lastPrice',
-        # 'priceToBook',
-        # 'enterpriseToRevenue',
-        # 'enterpriseToEbitda',
-        # 'trailingPE',
-        'BridgeEnterpriseValueMarketCap',
-        f'marketCapRevenue{capitalized_groupby_col}',
-        f'marketCapEbitda{capitalized_groupby_col}',
-        f'marketCapEarnings{capitalized_groupby_col}',
-        f'marketCapBook{capitalized_groupby_col}',
-        f'stockPriceRevenue{capitalized_groupby_col}', 
-        f'stockPriceEbitda{capitalized_groupby_col}', 
-        f'stockPriceEarnings{capitalized_groupby_col}',
-        f'stockPriceBook{capitalized_groupby_col}',
+        f'MarketCapRevenue{capitalized_groupby_col}',
+        f'MarketCapEbitda{capitalized_groupby_col}',
+        f'MarketCapEarnings{capitalized_groupby_col}',
+        f'MarketCapBook{capitalized_groupby_col}',
+        f'StockPriceRevenue{capitalized_groupby_col}', 
+        f'StockPriceEbitda{capitalized_groupby_col}', 
+        f'StockPriceEarnings{capitalized_groupby_col}',
+        f'StockPriceBook{capitalized_groupby_col}',
         f'PeersMeanStockPrice{capitalized_groupby_col}', 
         f'PeersRelativeStdStockPrice{capitalized_groupby_col}',
         f'PeersAbsoluteDiff{capitalized_groupby_col}',
@@ -340,3 +333,64 @@ def compute_financial_ratios(historical_financials):
     historical_financials["NetAssetPerShare"] = historical_financials["TotalEquityGrossMinorityInterest"] / historical_financials["OrdinarySharesNumber"]
 
     return historical_financials
+
+def daily_valuation(row, historical_financials):
+    """"Function using financials and stock prices info to compute valuation details. To be applied to history_prices"""
+    
+    # Filter financials for the row symbol
+    row_symbol = row['symbol']
+    symbol_financials = historical_financials[historical_financials['symbol'] == row_symbol]
+
+    # Find the closest date of the row
+    row_date = row['date']
+    deltas = {}
+    
+    for date in symbol_financials['date'].values:
+        
+        if date < row_date: # We take only more ancient dates because we can't perform valuation based on financials we don't at the time of the row
+            delta = row_date - date
+            deltas[delta] = date
+
+    if len(deltas) == 0: # If no financials available return None for all valuation measures
+        row['MarketCap'] = None
+        row['EnterpriseValue'] = None
+        row['EnterpriseValueRevenueMultiple'] = None
+        row['EnterpriseValueEBITDAMultiple'] = None
+        row['PriceToBookRatio'] = None
+        row['PriceEarningsRatio'] = None
+
+        return row
+    
+    else:
+        min_delta = min(deltas) # We take the closest date
+
+        if min_delta < dt.timedelta(days=366): # If the date is less than 1 year difference we will use financials of this date
+            selected_date = deltas[min_delta]
+        
+        else: # Else it's too ancient and we return None for all valuation measures
+            row['MarketCap'] = None
+            row['EnterpriseValue'] = None
+            row['EnterpriseValueRevenueMultiple'] = None
+            row['EnterpriseValueEBITDAMultiple'] = None
+            row['PriceToBookRatio'] = None
+            row['PriceEarningsRatio'] = None
+
+            return row
+
+    # Select financials of the closest date if available
+    symbol_financials = symbol_financials[symbol_financials['date'] == selected_date]
+
+    if "12M" in symbol_financials['periodType'].values: # We take in priority 12 months results if available
+        symbol_financials = symbol_financials[symbol_financials['periodType'] == "12M"][["TotalRevenue", "EBITDA", "NetIncome", "NetDebt", "OrdinarySharesNumber", "TotalEquityGrossMinorityInterest"]]
+    else:
+        symbol_financials = symbol_financials[["TotalRevenue", "EBITDA", "NetIncome", "NetDebt", "OrdinarySharesNumber", "TotalEquityGrossMinorityInterest"]]
+
+    # Use selected financials to compute valuation based on row stock price
+    row['MarketCap'] = row['adjclose'] * symbol_financials['OrdinarySharesNumber'].values[0]
+    row['EnterpriseValue'] = row['MarketCap'] + symbol_financials['NetDebt'].values[0]
+    row['EnterpriseValueRevenueMultiple'] = row['EnterpriseValue'] / symbol_financials['TotalRevenue'].values[0]
+    row['EnterpriseValueEBITDAMultiple'] = row['EnterpriseValue'] / symbol_financials['EBITDA'].values[0]
+    row['PriceToBookRatio'] = row['MarketCap'] / symbol_financials['TotalEquityGrossMinorityInterest'].values[0]
+    row['PriceEarningsRatio'] = row['MarketCap'] / symbol_financials['NetIncome'].values[0]
+    
+    return row

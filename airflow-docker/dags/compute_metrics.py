@@ -84,10 +84,10 @@ def compute_metrics():
             DROP TABLE IF EXISTS mean_sector_multiples;
             CREATE TABLE mean_sector_multiples (
                 "sector" TEXT PRIMARY KEY,
-                "MeanSectorPriceToBook" FLOAT,
-                "MeanSectorEnterpriseToRevenue" FLOAT,
-                "MeanSectorEnterpriseToEbitda" FLOAT,
-                "MeanSectorTrailingPE" FLOAT
+                "MeanSectorPriceToBookRatio" FLOAT,
+                "MeanSectorEnterpriseValueRevenueMultiple" FLOAT,
+                "MeanSectorEnterpriseValueEBITDAMultiple" FLOAT,
+                "MeanSectorPriceEarningsRatio" FLOAT
             );""",
     )
 
@@ -102,15 +102,14 @@ def compute_metrics():
             CREATE TABLE IF NOT EXISTS sector_peers_valuation (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
-                "BridgeEnterpriseValueMarketCap" FLOAT,
-                "marketCapRevenueSector" FLOAT,
-                "marketCapEbitdaSector" FLOAT,
-                "marketCapEarningsSector" FLOAT,
-                "marketCapBookSector" FLOAT,
-                "stockPriceRevenueSector" FLOAT,
-                "stockPriceEbitdaSector" FLOAT,
-                "stockPriceEarningsSector" FLOAT,
-                "stockPriceBookSector" FLOAT,
+                "MarketCapRevenueSector" FLOAT,
+                "MarketCapEbitdaSector" FLOAT,
+                "MarketCapEarningsSector" FLOAT,
+                "MarketCapBookSector" FLOAT,
+                "StockPriceRevenueSector" FLOAT,
+                "StockPriceEbitdaSector" FLOAT,
+                "StockPriceEarningsSector" FLOAT,
+                "StockPriceBookSector" FLOAT,
                 "PeersMeanStockPriceSector" FLOAT,
                 "PeersRelativeStdStockPriceSector" FLOAT,
                 "PeersAbsoluteDiffSector" FLOAT,
@@ -129,15 +128,14 @@ def compute_metrics():
             CREATE TABLE sector_peers_valuation_temp (
                 "symbol" TEXT,
                 "date" TIMESTAMP,
-                "BridgeEnterpriseValueMarketCap" FLOAT,
-                "marketCapRevenueSector" FLOAT,
-                "marketCapEbitdaSector" FLOAT,
-                "marketCapEarningsSector" FLOAT,
-                "marketCapBookSector" FLOAT,
-                "stockPriceRevenueSector" FLOAT,
-                "stockPriceEbitdaSector" FLOAT,
-                "stockPriceEarningsSector" FLOAT,
-                "stockPriceBookSector" FLOAT,
+                "MarketCapRevenueSector" FLOAT,
+                "MarketCapEbitdaSector" FLOAT,
+                "MarketCapEarningsSector" FLOAT,
+                "MarketCapBookSector" FLOAT,
+                "StockPriceRevenueSector" FLOAT,
+                "StockPriceEbitdaSector" FLOAT,
+                "StockPriceEarningsSector" FLOAT,
+                "StockPriceBookSector" FLOAT,
                 "PeersMeanStockPriceSector" FLOAT,
                 "PeersRelativeStdStockPriceSector" FLOAT,
                 "PeersAbsoluteDiffSector" FLOAT,
@@ -156,10 +154,10 @@ def compute_metrics():
             DROP TABLE IF EXISTS mean_cluster_multiples;
             CREATE TABLE mean_cluster_multiples (
                 "cluster" TEXT PRIMARY KEY,
-                "MeanClusterPriceToBook" FLOAT,
-                "MeanClusterEnterpriseToRevenue" FLOAT,
-                "MeanClusterEnterpriseToEbitda" FLOAT,
-                "MeanClusterTrailingPE" FLOAT
+                "MeanClusterPriceToBookRatio" FLOAT,
+                "MeanClusterEnterpriseValueRevenueMultiple" FLOAT,
+                "MeanClusterEnterpriseValueEBITDAMultiple" FLOAT,
+                "MeanClusterPriceEarningsRatio" FLOAT
             );""",
     )
 
@@ -175,15 +173,14 @@ def compute_metrics():
                 "symbol" TEXT,
                 "date" TIMESTAMP,
                 "cluster" TEXT,
-                "BridgeEnterpriseValueMarketCap" FLOAT,
-                "marketCapRevenueCluster" FLOAT,
-                "marketCapEbitdaCluster" FLOAT,
-                "marketCapEarningsCluster" FLOAT,
-                "marketCapBookCluster" FLOAT,
-                "stockPriceRevenueCluster" FLOAT,
-                "stockPriceEbitdaCluster" FLOAT,
-                "stockPriceEarningsCluster" FLOAT,
-                "stockPriceBookCluster" FLOAT,
+                "MarketCapRevenueCluster" FLOAT,
+                "MarketCapEbitdaCluster" FLOAT,
+                "MarketCapEarningsCluster" FLOAT,
+                "MarketCapBookCluster" FLOAT,
+                "StockPriceRevenueCluster" FLOAT,
+                "StockPriceEbitdaCluster" FLOAT,
+                "StockPriceEarningsCluster" FLOAT,
+                "StockPriceBookCluster" FLOAT,
                 "PeersMeanStockPriceCluster" FLOAT,
                 "PeersRelativeStdStockPriceCluster" FLOAT,
                 "PeersAbsoluteDiffCluster" FLOAT,
@@ -203,15 +200,14 @@ def compute_metrics():
                 "symbol" TEXT,
                 "date" TIMESTAMP,
                 "cluster" TEXT,
-                "BridgeEnterpriseValueMarketCap" FLOAT,
-                "marketCapRevenueCluster" FLOAT,
-                "marketCapEbitdaCluster" FLOAT,
-                "marketCapEarningsCluster" FLOAT,
-                "marketCapBookCluster" FLOAT,
-                "stockPriceRevenueCluster" FLOAT,
-                "stockPriceEbitdaCluster" FLOAT,
-                "stockPriceEarningsCluster" FLOAT,
-                "stockPriceBookCluster" FLOAT,
+                "MarketCapRevenueCluster" FLOAT,
+                "MarketCapEbitdaCluster" FLOAT,
+                "MarketCapEarningsCluster" FLOAT,
+                "MarketCapBookCluster" FLOAT,
+                "StockPriceRevenueCluster" FLOAT,
+                "StockPriceEbitdaCluster" FLOAT,
+                "StockPriceEarningsCluster" FLOAT,
+                "StockPriceBookCluster" FLOAT,
                 "PeersMeanStockPriceCluster" FLOAT,
                 "PeersRelativeStdStockPriceCluster" FLOAT,
                 "PeersAbsoluteDiffCluster" FLOAT,
@@ -294,65 +290,77 @@ def compute_metrics():
                 g."shortName",
                 g."sector",
                 g."industry",
-                v."priceToBook",
-                v."enterpriseToRevenue",
-                v."enterpriseToEbitda",
-                v."trailingPE"
+                v."MarketCap",
+                v."EnterpriseValue",
+                v."PriceToBookRatio",
+                v."EnterpriseValueRevenueMultiple",
+                v."EnterpriseValueEBITDAMultiple",
+                v."PriceEarningsRatio"
             FROM general_information AS g
             LEFT JOIN last_valuations v ON g."symbol" = v."symbol";
         """
         cur.execute(query)
         colnames = [desc[0] for desc in cur.description]
         query_result = cur.fetchall()
-        multiples = pd.DataFrame(query_result, columns=colnames)
+        last_valuations = pd.DataFrame(query_result, columns=colnames)
+
+        # query = """
+        #     WITH last_stock_info 
+        #     AS 
+        #     (
+        #     SELECT
+        #         s."symbol",
+        #         s."date",
+        #         s."sharesOutstanding"
+        #     FROM (
+        #         SELECT
+        #             "symbol",
+        #             MAX("date") AS last_date
+        #         FROM stock_information
+        #         GROUP BY "symbol"
+        #         ) l
+        #     LEFT JOIN stock_information AS s ON s."symbol" = l."symbol" AND s."date" = l."last_date"
+        #     )
+        #     SELECT
+        #         v."symbol", 
+        #         v."bookValue",
+        #         v."EnterpriseValue",
+        #         (v."EnterpriseValue" - v."MarketCap") AS "NetDebt",
+        #         v."MarketCap",
+        #         last_stock_info."sharesOutstanding",
+        #         (v."MarketCap" / last_stock_info."sharesOutstanding") AS "stock_price"
+        #     FROM last_valuations AS v
+        #     LEFT JOIN last_stock_info ON last_stock_info."symbol" = v."symbol";
+        # """
+
+        # cur.execute(query)
+        # colnames = [desc[0] for desc in cur.description]
+        # query_result = cur.fetchall()
+        # last_valuations = pd.DataFrame(query_result, columns=colnames)
 
         query = """
-            WITH last_stock_info 
-            AS 
-            (
             SELECT
-                s."symbol",
-                s."date",
-                s."sharesOutstanding"
+                hf."symbol", 
+                hf."TotalRevenue",
+                hf."EBITDA",
+                hf."NetIncome",
+                hf."NetDebt",
+                hf."TotalEquityGrossMinorityInterest",
+                hf."OrdinarySharesNumber"
             FROM (
                 SELECT
                     "symbol",
                     MAX("date") AS last_date
-                FROM stock_information
+                FROM historical_financials
                 GROUP BY "symbol"
                 ) l
-            LEFT JOIN stock_information AS s ON s."symbol" = l."symbol" AND s."date" = l."last_date"
-            )
-            SELECT
-                v."symbol", 
-                v."bookValue",
-                v."enterpriseValue",
-                (v."enterpriseValue" - v."marketCap") AS "BridgeEnterpriseValueMarketCap",
-                v."marketCap",
-                last_stock_info."sharesOutstanding",
-                (v."marketCap" / last_stock_info."sharesOutstanding") AS "stock_price"
-            FROM last_valuations AS v
-            LEFT JOIN last_stock_info ON last_stock_info."symbol" = v."symbol";
+            LEFT JOIN historical_financials AS hf ON hf."symbol" = l."symbol" AND hf."date" = l."last_date"
         """
 
         cur.execute(query)
         colnames = [desc[0] for desc in cur.description]
         query_result = cur.fetchall()
-        last_valuations = pd.DataFrame(query_result, columns=colnames)
-
-        query = """
-            SELECT
-                "symbol", 
-                "totalRevenue",
-                "ebitda",
-                ("totalRevenue" * "profitMargins") AS "earnings"
-            FROM last_financials
-        """
-
-        cur.execute(query)
-        colnames = [desc[0] for desc in cur.description]
-        query_result = cur.fetchall()
-        financials = pd.DataFrame(query_result, columns=colnames)
+        last_financials = pd.DataFrame(query_result, columns=colnames)
 
         query = """
         SELECT
@@ -365,7 +373,7 @@ def compute_metrics():
         cur.execute(query)
         colnames = [desc[0] for desc in cur.description]
         query_result = cur.fetchall()
-        stock_price = pd.DataFrame(query_result, columns=colnames)
+        last_stock_prices = pd.DataFrame(query_result, columns=colnames)
 
         # ---------------------------------------------------------------------------------------------------
         # Query ML features
@@ -487,8 +495,9 @@ def compute_metrics():
         
         # ---------------------------------------------------------------------------------------------------
         # Sector Peers
-        mean_sector_multiples, sector_peers = peers_valuation("sector", financials, multiples, last_valuations, stock_price)
+        mean_sector_multiples, sector_peers = peers_valuation("sector", last_financials, last_valuations, last_stock_prices)
         sector_peers.drop("sector", axis=1, inplace=True)
+        print(sector_peers.columns)
 
         # ---------------------------------------------------------------------------------------------------
         # Clustering Peers
@@ -504,8 +513,9 @@ def compute_metrics():
         clusters = clustering_model.predict(X_prep)
 
         # Perform valuation
-        multiples['cluster'] = clusters
-        mean_cluster_multiples, cluster_peers = peers_valuation("cluster", financials, multiples, last_valuations, stock_price)
+        last_valuations['cluster'] = clusters
+        mean_cluster_multiples, cluster_peers = peers_valuation("cluster", last_financials, last_valuations, last_stock_prices)
+        print(cluster_peers)
 
         # ---------------------------------------------------------------------------------------------------
         # Regression ML
