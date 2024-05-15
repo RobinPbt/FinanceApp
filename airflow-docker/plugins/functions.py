@@ -207,14 +207,14 @@ def peers_valuation(groupby_col, financials, valuations, stock_price):
     # Apply valuation functions
     peers[f'MarketCapRevenue{capitalized_groupby_col}'] = peers.apply(lambda x: revenue_valuation(x[f'Mean{capitalized_groupby_col}EnterpriseValueRevenueMultiple'], x['TotalRevenue'], x['NetDebt']), axis=1)
     peers[f'MarketCapEbitda{capitalized_groupby_col}'] = peers.apply(lambda x: ebitda_valuation(x[f'Mean{capitalized_groupby_col}EnterpriseValueEBITDAMultiple'], x['EBITDA'], x['NetDebt']), axis=1)
-    peers[f'StockPriceBook{capitalized_groupby_col}'] = peers.apply(lambda x: book_valuation(x[f'Mean{capitalized_groupby_col}PriceToBookRatio'], x['TotalEquityGrossMinorityInterest'], x['NetDebt']), axis=1)
+    peers[f'MarketCapBook{capitalized_groupby_col}'] = peers.apply(lambda x: book_valuation(x[f'Mean{capitalized_groupby_col}PriceToBookRatio'], x['TotalEquityGrossMinorityInterest'], x['NetDebt']), axis=1)
     peers[f'MarketCapEarnings{capitalized_groupby_col}'] = peers.apply(lambda x: earnings_valuation(x[f'Mean{capitalized_groupby_col}PriceEarningsRatio'], x['NetIncome'], x['NetDebt']), axis=1)
 
     # Convert market capitalizations into stock prices (or the other way round)
     peers[f'StockPriceRevenue{capitalized_groupby_col}'] = peers[f'MarketCapRevenue{capitalized_groupby_col}'] / peers['OrdinarySharesNumber']
     peers[f'StockPriceEbitda{capitalized_groupby_col}'] = peers[f'MarketCapEbitda{capitalized_groupby_col}'] / peers['OrdinarySharesNumber']
     peers[f'StockPriceEarnings{capitalized_groupby_col}'] = peers[f'MarketCapEarnings{capitalized_groupby_col}'] / peers['OrdinarySharesNumber']
-    peers[f'MarketCapBook{capitalized_groupby_col}'] = peers[f'StockPriceBook{capitalized_groupby_col}'] * peers['OrdinarySharesNumber']
+    peers[f'StockPriceBook{capitalized_groupby_col}'] = peers[f'MarketCapBook{capitalized_groupby_col}'] / peers['OrdinarySharesNumber']
     
     # Compute mean stock price over all valuation approaches
     peers[f'PeersMeanStockPrice{capitalized_groupby_col}'] = peers.apply(lambda x: np.nanmean([x[f'StockPriceBook{capitalized_groupby_col}'], x[f'StockPriceRevenue{capitalized_groupby_col}'], x[f'StockPriceEbitda{capitalized_groupby_col}'], x[f'StockPriceEarnings{capitalized_groupby_col}']]), axis=1)

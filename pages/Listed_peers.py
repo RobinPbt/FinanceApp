@@ -69,10 +69,10 @@ def get_peers():
             g."shortName",
             g."sector",
             s."close" AS "lastPrice",
-            v."priceToBook",
-            v."enterpriseToRevenue",
-            v."enterpriseToEbitda",
-            v."trailingPE"
+            v."PriceToBookRatio",
+            v."EnterpriseValueRevenueMultiple",
+            v."EnterpriseValueEBITDAMultiple",
+            v."PriceEarningsRatio"
         FROM last_peers
         LEFT JOIN general_information AS g ON last_peers."symbol" = g."symbol"
         LEFT JOIN last_stock_prices AS s ON last_peers."symbol" = s."symbol" AND last_peers."date" = s."date"
@@ -216,16 +216,16 @@ with tab2:
     price_to_book_col, enterprise_to_revenue_col, enterprise_to_ebitda_col, trailing_PE_col = st.columns([1, 1, 1, 1])
 
     with price_to_book_col:
-        fig = create_bar_chart(sector_multiples, "MeanSectorPriceToBook", "Price to Book")                
+        fig = create_bar_chart(sector_multiples, "MeanSectorPriceToBookRatio", "Price to Book")                
         st.plotly_chart(fig, use_container_width=True)
     with enterprise_to_revenue_col:
-        fig = create_bar_chart(sector_multiples, "MeanSectorEnterpriseToRevenue", "Enterprise to Revenue")                
+        fig = create_bar_chart(sector_multiples, "MeanSectorEnterpriseValueRevenueMultiple", "Enterprise to Revenue")                
         st.plotly_chart(fig, use_container_width=True)
     with enterprise_to_ebitda_col:
-        fig = create_bar_chart(sector_multiples, "MeanSectorEnterpriseToEbitda", "Enterprise to Ebitda")                
+        fig = create_bar_chart(sector_multiples, "MeanSectorEnterpriseValueEBITDAMultiple", "Enterprise to Ebitda")                
         st.plotly_chart(fig, use_container_width=True)
     with trailing_PE_col:
-        fig = create_bar_chart(sector_multiples, "MeanSectorTrailingPE", "Trailing PE")                
+        fig = create_bar_chart(sector_multiples, "MeanSectorPriceEarningsRatio", "Price Earnings Ratio")                
         st.plotly_chart(fig, use_container_width=True)
 
 # ---------------------------------------------------------------------------------------------------
@@ -234,10 +234,11 @@ with tab2:
 with tab3:
     # Load datas from current selection
     selected_peers = peers[peers['symbol'] == ticker_selection]
+    st.dataframe(data=selected_peers)
     sector_multiples = get_sector_multiples()
     selected_sector_multiples = sector_multiples[sector_multiples["sector"] == selected_peers['sector'].values[0]].drop("sector", axis=1)
     
-    x_axis_peers = ['stockPriceBookSector', 'stockPriceRevenueSector', 'stockPriceEbitdaSector', 'stockPriceEarningsSector']
+    x_axis_peers = ['StockPriceBookSector', 'StockPriceRevenueSector', 'StockPriceEbitdaSector', 'StockPriceEarningsSector']
     current_multiples = selected_peers[x_axis_peers]
 
     x_axis_price = ['PeersMeanStockPriceSector', 'lastPrice']
@@ -298,7 +299,7 @@ with tab3:
 
     with multiple_compare:
         
-        x_axis_multiples = ["priceToBook", "enterpriseToRevenue", "enterpriseToEbitda", "trailingPE"]
+        x_axis_multiples = ["PriceToBookRatio", "EnterpriseValueRevenueMultiple", "EnterpriseValueEBITDAMultiple", "PriceEarningsRatio"]
 
         fig = go.Figure()
         fig.add_trace(go.Bar(

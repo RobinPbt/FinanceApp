@@ -68,10 +68,10 @@ def get_peers():
             last_peers.*, 
             g."shortName",
             s."close" AS "lastPrice",
-            v."priceToBook",
-            v."enterpriseToRevenue",
-            v."enterpriseToEbitda",
-            v."trailingPE"
+            v."PriceToBookRatio",
+            v."EnterpriseValueRevenueMultiple",
+            v."EnterpriseValueEBITDAMultiple",
+            v."PriceEarningsRatio"
         FROM last_peers
         LEFT JOIN general_information AS g ON last_peers."symbol" = g."symbol"
         LEFT JOIN last_stock_prices AS s ON last_peers."symbol" = s."symbol" AND last_peers."date" = s."date"
@@ -216,16 +216,16 @@ with tab2:
     price_to_book_col, enterprise_to_revenue_col, enterprise_to_ebitda_col, trailing_PE_col = st.columns([1, 1, 1, 1])
 
     with price_to_book_col:
-        fig = create_bar_chart(cluster_multiples, "MeanClusterPriceToBook", "Price to Book")                
+        fig = create_bar_chart(cluster_multiples, "MeanClusterPriceToBookRatio", "Price to Book")                
         st.plotly_chart(fig, use_container_width=True)
     with enterprise_to_revenue_col:
-        fig = create_bar_chart(cluster_multiples, "MeanClusterEnterpriseToRevenue", "Enterprise to Revenue")                
+        fig = create_bar_chart(cluster_multiples, "MeanClusterEnterpriseValueRevenueMultiple", "Enterprise to Revenue")                
         st.plotly_chart(fig, use_container_width=True)
     with enterprise_to_ebitda_col:
-        fig = create_bar_chart(cluster_multiples, "MeanClusterEnterpriseToEbitda", "Enterprise to Ebitda")                
+        fig = create_bar_chart(cluster_multiples, "MeanClusterEnterpriseValueEBITDAMultiple", "Enterprise to Ebitda")                
         st.plotly_chart(fig, use_container_width=True)
     with trailing_PE_col:
-        fig = create_bar_chart(cluster_multiples, "MeanClusterTrailingPE", "Trailing PE")                
+        fig = create_bar_chart(cluster_multiples, "MeanClusterPriceEarningsRatio", "Price Earnings Ratio")                
         st.plotly_chart(fig, use_container_width=True)
 
 # ---------------------------------------------------------------------------------------------------
@@ -237,7 +237,7 @@ with tab3:
     cluster_multiples = get_cluster_multiples()
     selected_cluster_multiples = cluster_multiples[cluster_multiples["cluster"] == selected_peers['cluster'].values[0]].drop("cluster", axis=1)
     
-    x_axis_peers = ['stockPriceBookCluster', 'stockPriceRevenueCluster', 'stockPriceEbitdaCluster', 'stockPriceEarningsCluster']
+    x_axis_peers = ['StockPriceBookCluster', 'StockPriceRevenueCluster', 'StockPriceEbitdaCluster', 'StockPriceEarningsCluster']
     current_multiples = selected_peers[x_axis_peers]
 
     x_axis_price = ['PeersMeanStockPriceCluster', 'lastPrice']
@@ -298,7 +298,7 @@ with tab3:
 
     with multiple_compare:
         
-        x_axis_multiples = ["priceToBook", "enterpriseToRevenue", "enterpriseToEbitda", "trailingPE"]
+        x_axis_multiples = ["PriceToBookRatio", "EnterpriseValueRevenueMultiple", "EnterpriseValueEBITDAMultiple", "PriceEarningsRatio"]
 
         fig = go.Figure()
         fig.add_trace(go.Bar(
