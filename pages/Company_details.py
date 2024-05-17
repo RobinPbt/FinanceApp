@@ -64,33 +64,6 @@ def get_single_symbol_info(table_name, symbol, order_by=None, limit=1):
     symbol_info = pd.DataFrame(query_result)
     return symbol_info
   
-def metrics_value_formatting(value, value_type="percentage", percentage_format="growth"):
-    """
-    Function for value formatting before displaying in st.metric.
-
-    args:
-    - value (numeric): value to be formatted
-    - value_type (str: "percentage", "millions" or "ratio"): type of numeric value
-    - percentage_format (str: "growth", "margin" or ""): format for percentages
-    """
-
-    if not value:
-        return value
-    else:
-        if value_type == "percentage":
-            if percentage_format == "growth":
-                return "{:,.2%} growth".format(value)
-            elif percentage_format == "margin":
-                return "{:,.2%} of revenue".format(value)
-            else:
-                return "{:,.2%}".format(value)
-        
-        elif value_type == "millions":
-            return "€{:,.0f} m".format(value / 10**6)
-        
-        elif value_type == "ratio":
-            return "{:,.2f}".format(value)
-
 # ---------------------------------------------------------------------------------------------------
 # Define caching functions
 
@@ -152,8 +125,47 @@ def get_all_symbol_info(symbol):
     ratings = get_single_symbol_info("ratings", symbol, order_by="date", limit=1)
     estimates = get_single_symbol_info("last_estimates", symbol)
     valuation = get_single_symbol_info("last_valuations", symbol)
-    financials = get_single_symbol_info("last_financials", symbol)
+    # financials = get_single_symbol_info("last_financials", symbol)
     dividends = get_single_symbol_info("dividends_weekly", symbol, order_by="exDividendDate", limit=1)
+
+    query = """
+        SELECT
+            hf."symbol", 
+            hf."TotalRevenue",
+            hf."RevenueGrowth",
+            hf."GrossProfit",
+            hf."GrossMargin",
+            hf."EBITDA",
+            hf."EBITDAMargin",
+            hf."EBIT",
+            hf."EBITMargin",
+            hf."NetIncome",
+            hf."NetIncomeMargin",
+            hf."OperatingCashFlow",
+            hf."CapitalExpenditure",
+            hf."ConversionEBITDAFreeCashFlow",
+            hf."FreeCashFlow",
+            hf."TotalDebt",
+            hf."CashAndCashEquivalents",
+            hf."Leverage",
+            hf."WorkingCapital",
+            hf."TotalEquityGrossMinorityInterest",
+            hf."ReturnOnEquity",
+            hf."ReturnOnAssets"
+        FROM (
+            SELECT
+                "symbol",
+                MAX("date") AS last_date
+            FROM historical_financials
+            GROUP BY "symbol"
+            ) l
+        LEFT JOIN historical_financials AS hf ON hf."symbol" = l."symbol" AND hf."date" = l."last_date"
+        WHERE hf."symbol" = '{}';
+    """.format(symbol)
+
+
+    query_result = con.query(query)
+    financials = pd.DataFrame(query_result)
     
     return general_info, ratings, estimates, valuation, financials, dividends
 
@@ -180,66 +192,68 @@ def get_daily_stock_prices(symbol):
 # ---------------------------------------------------------------------------------------------------
 # LLM model and functions
 
-# Create a model
-chat_model = ChatOpenAI(
-    model_name="gpt-3.5-turbo", 
-    temperature=0.01, 
-    openai_api_key=os.getenv("OPENAI_API_KEY")
-)
+# Code deactivated to avoid incurring API costs during testing
 
-# setting up the script prompt templates
-script_template = PromptTemplate(
-    input_variables = ['company_name', 'wikipedia_research', 'web_search'], 
-    template='''Give me a 10 lines description of the activity of the company {company_name} 
-    including the location of its headquarter, its number of employees over the world, its underlying markets and its main competitors.
-    You will make use of the information and knowledge obtained from the Wikipedia research:{wikipedia_research}
-    and make use of the additional information from the web search:{web_search} ''',
-)
+# # Create a model
+# chat_model = ChatOpenAI(
+#     model_name="gpt-3.5-turbo", 
+#     temperature=0.01, 
+#     openai_api_key=os.getenv("OPENAI_API_KEY")
+# )
 
-# memory buffer
-memory = ConversationBufferMemory(
-    input_key='company_name', 
-    memory_key='chat_history')
+# # setting up the script prompt templates
+# script_template = PromptTemplate(
+#     input_variables = ['company_name', 'wikipedia_research', 'web_search'], 
+#     template='''Give me a 10 lines description of the activity of the company {company_name} 
+#     including the location of its headquarter, its number of employees over the world, its underlying markets and its main competitors.
+#     You will make use of the information and knowledge obtained from the Wikipedia research:{wikipedia_research}
+#     and make use of the additional information from the web search:{web_search} ''',
+# )
 
-# LLM chain
-chain = LLMChain(
-    llm=chat_model, 
-    prompt=script_template, 
-    verbose=True, 
-    output_key='script', 
-    memory=memory)
+# # memory buffer
+# memory = ConversationBufferMemory(
+#     input_key='company_name', 
+#     memory_key='chat_history')
 
-async def generate_script(company_name):
-    wikipedia_research = fetch_wikipedia_data(company_name)
-    web_search = fetch_web_search_results(company_name)
-    script = chain.run(
-        company_name=company_name, 
-        wikipedia_research=wikipedia_research, 
-        web_search=web_search
-    )
+# # LLM chain
+# chain = LLMChain(
+#     llm=chat_model, 
+#     prompt=script_template, 
+#     verbose=True, 
+#     output_key='script', 
+#     memory=memory)
+
+# async def generate_script(company_name):
+#     wikipedia_research = fetch_wikipedia_data(company_name)
+#     web_search = fetch_web_search_results(company_name)
+#     script = chain.run(
+#         company_name=company_name, 
+#         wikipedia_research=wikipedia_research, 
+#         web_search=web_search
+#     )
     
-    return script, wikipedia_research, web_search
+#     return script, wikipedia_research, web_search
 
-# This function is a wrapper around the async function 'generate_script'
-# It allows us to call the async function in a synchronous way
-# using 'asyncio.run'
-def run_generate_script(company_name):
-    """
-    Wrapper function to run the async function 'generate_script'
-    in a synchronous way
+# # This function is a wrapper around the async function 'generate_script'
+# # It allows us to call the async function in a synchronous way
+# # using 'asyncio.run'
+# def run_generate_script(company_name):
+#     """
+#     Wrapper function to run the async function 'generate_script'
+#     in a synchronous way
     
-    Args:
-        input_text (str): The input text passed to the language model
+#     Args:
+#         input_text (str): The input text passed to the language model
 
-    Returns:
-        tuple: A tuple containing the script, web search and wikipedia research
-    """
-    return asyncio.run(generate_script(company_name))
+#     Returns:
+#         tuple: A tuple containing the script, web search and wikipedia research
+#     """
+#     return asyncio.run(generate_script(company_name))
 
-def stream_data(script):
-    for word in script.split(" "):
-        yield word + " "
-        time.sleep(0.02)
+# def stream_data(script):
+#     for word in script.split(" "):
+#         yield word + " "
+#         time.sleep(0.02)
 
 # ---------------------------------------------------------------------------------------------------
 # DASHBOARD
@@ -297,14 +311,14 @@ with tab1:
 
     with LLM_col:
         # LLM function call
-        script, wikipedia_research, web_search = run_generate_script(company_selection)
+        # script, wikipedia_research, web_search = run_generate_script(company_selection)
 
         # writing the title and script
         st.write("""## Activity description *(powered by ChatGPT)*""")
         image = Image.open("ChatGPT_logo.png")
         st.image(image, width=30)
 
-        st.write(script) 
+        # st.write(script) 
         # st.write_stream(stream_data(script))
         
         # with st.expander('Wikipedia-based exploration: '): 
@@ -365,14 +379,14 @@ with tab3:
         st.write("""### P&L""")
 
         # Get P&L items
-        totalRevenue = financials['totalRevenue'].values[0]
-        revenueGrowth = financials['revenueGrowth'].values[0]
-        grossProfits = financials['grossProfits'].values[0]
-        grossMargins = financials['grossMargins'].values[0]
-        ebitda = financials['ebitda'].values[0]
-        ebitdaMargins = financials['ebitdaMargins'].values[0]
-        profitMargins = financials['profitMargins'].values[0]
-        profit = totalRevenue * profitMargins
+        totalRevenue = financials['TotalRevenue'].values[0]
+        revenueGrowth = financials['RevenueGrowth'].values[0]
+        grossProfits = financials['GrossProfit'].values[0]
+        grossMargins = financials['GrossMargin'].values[0]
+        ebitda = financials['EBITDA'].values[0]
+        ebitdaMargins = financials['EBITDAMargin'].values[0]
+        profit = financials['NetIncome'].values[0]
+        profitMargins = financials['NetIncomeMargin'].values[0]
 
         if not grossProfits and grossMargins:
             grossProfits = totalRevenue * grossMargins
@@ -418,12 +432,11 @@ with tab3:
         st.write("""### Balance sheet""")
 
         # Get BS items
-        totalCash = financials['totalCash'].values[0]
-        totalCashPerShare = financials['totalCashPerShare'].values[0]
-        totalDebt = financials['totalDebt'].values[0]
-        quickRatio = financials['quickRatio'].values[0]
-        currentRatio = financials['currentRatio'].values[0]
-        debtToEquity = financials['debtToEquity'].values[0]
+        totalCash = financials['CashAndCashEquivalents'].values[0]
+        totalDebt = financials['TotalDebt'].values[0]
+        leverage = financials['Leverage'].values[0]
+        WorkingCapital = financials['WorkingCapital'].values[0]
+        totalEquity = financials['TotalEquityGrossMinorityInterest'].values[0]
 
         balance_sheet_col1, balance_sheet_col2, balance_sheet_col3, balance_sheet_col4, balance_sheet_col5 = st.columns(5)
 
@@ -442,20 +455,20 @@ with tab3:
 
         with balance_sheet_col3:
             st.metric(
-                label="Quick Ratio", 
-                value=metrics_value_formatting(quickRatio, value_type="ratio")
+                label="Leverage", 
+                value=metrics_value_formatting(leverage, value_type="ratio")
             )
 
         with balance_sheet_col4:
             st.metric(
-                label="Current Ratio", 
-                value=metrics_value_formatting(currentRatio, value_type="ratio")
+                label="Working Capital", 
+                value=metrics_value_formatting(WorkingCapital, value_type="millions")
             )
 
         with balance_sheet_col5:
             st.metric(
-                label="Debt to equity", 
-                value=metrics_value_formatting(debtToEquity, value_type="ratio")
+                label="Total Equity", 
+                value=metrics_value_formatting(totalEquity, value_type="millions")
             )
 
     st.divider()
@@ -469,17 +482,20 @@ with tab3:
         with cash_flow:
         
             st.write("""### Cash flow""")
-
+            
             # Get cash flow items
-            freeCashflow = financials['freeCashflow'].values[0]
-            operatingCashflow = financials['operatingCashflow'].values[0]
+            freeCashflow = financials['FreeCashFlow'].values[0]
+            ConversionEBITDAFreeCashFlow = financials['ConversionEBITDAFreeCashFlow'].values[0]
+            operatingCashflow = financials['OperatingCashFlow'].values[0]
 
             cash_flow_col1, cash_flow_col2 = st.columns(2)
 
             with cash_flow_col1:
                 st.metric(
                     label="Free cash flow", 
-                    value=metrics_value_formatting(freeCashflow, value_type="millions")
+                    value=metrics_value_formatting(freeCashflow, value_type="millions"),
+                    delta=metrics_value_formatting(ConversionEBITDAFreeCashFlow, value_type="percentage", percentage_format="ebitda margin"),
+                    delta_color="off"
                 )
             
             with cash_flow_col2:
@@ -491,10 +507,10 @@ with tab3:
         with performance:
         
             st.write("""### Perfomance""")
-
+ 
             # Get performance ratios
-            returnOnAssets = financials['returnOnAssets'].values[0]
-            returnOnEquity = financials['returnOnEquity'].values[0]
+            returnOnAssets = financials['ReturnOnAssets'].values[0]
+            returnOnEquity = financials['ReturnOnEquity'].values[0]
 
             performance_col1, performance_col2 = st.columns(2)
 
@@ -509,13 +525,6 @@ with tab3:
                     label="Return on Equity", 
                     value=metrics_value_formatting(returnOnEquity, value_type="percentage", percentage_format="")
                 )
-
-    # selected_items = [
-    #         # P&L items
-    #         'revenuePerShare', 
-    #         'operatingMargins', 
-    #         'earningsGrowth', 
-    #     ]
 
 # ---------------------------------------------------------------------------------------------------
 # Estimates tab

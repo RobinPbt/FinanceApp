@@ -22,7 +22,7 @@ def metrics_value_formatting(value, value_type="percentage", percentage_format="
     args:
     - value (numeric): value to be formatted
     - value_type (str: "percentage", "millions" or "ratio"): type of numeric value
-    - percentage_format (str: "growth", "margin" or ""): format for percentages
+    - percentage_format (str: "growth", "margin", "ebitda margin" or ""): format for percentages
     """
 
     if not value:
@@ -33,6 +33,8 @@ def metrics_value_formatting(value, value_type="percentage", percentage_format="
                 return "{:,.2%} growth".format(value)
             elif percentage_format == "margin":
                 return "{:,.2%} of revenue".format(value)
+            elif percentage_format == "ebitda margin":
+                return "{:,.2%} of EBITDA".format(value)
             else:
                 return "{:,.2%}".format(value)
         
