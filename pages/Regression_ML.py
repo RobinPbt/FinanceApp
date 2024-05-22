@@ -93,7 +93,7 @@ def get_regression():
 @st.cache_data
 def get_model():
 
-    model = pickle.load(open('./test_model.pkl', 'rb'))
+    model = pickle.load(open('./test_model_2.pkl', 'rb'))
 
     return model
 
@@ -178,54 +178,27 @@ with tab2:
         
     # Plot feature importance
     feature_list = [
-        "sector",
-        "industry",
+        "date", 
+        "TotalRevenue", 
+        "RevenueGrowth", 
+        "GrossMargin", 
+        "EBITDAMargin", 
+        "EBITMargin", 
+        "PretaxIncomeMargin", 
+        "NetIncomeMargin", 
+        "Leverage", 
+        "PercentageCapitalExpenditureRevenue", 
+        "ReturnOnEquity", 
+        "ReturnOnAssets", 
+        "FreeCashFlowMargin", 
+        "ConversionEBITDAFreeCashFlow", 
+        "ConversionNetIncomeFreeCashFlow", 
+        "ConversionEBITDACash", 
+        "ConversionNetIncomeCash", 
+        "sector", 
+        "industry", 
+        "country",
         "fullTimeEmployees",
-        "regularMarketSource",
-        "exchange",
-        "quoteType",
-        "currency",
-        "auditRisk",
-        "boardRisk",
-        "compensationRisk",
-        "shareHolderRightsRisk",
-        "overallRisk",
-        "totalEsg",
-        "environmentScore",
-        "socialScore",
-        "governanceScore",
-        "highestControversy",
-        "floatShares",
-        "sharesOutstanding",
-        "heldPercentInsiders",
-        "heldPercentInstitutions",  
-        "totalCash",
-        "totalCashPerShare",
-        "totalDebt",
-        "quickRatio",
-        "currentRatio",
-        "debtToEquity",
-        "totalRevenue",
-        "revenuePerShare",
-        "revenueGrowth",
-        "grossProfits",
-        "grossMargins",
-        "operatingMargins",
-        "ebitda",
-        "ebitdaMargins",
-        "earningsGrowth",
-        "profitMargins",
-        "freeCashflow",
-        "operatingCashflow",
-        "returnOnAssets",
-        "returnOnEquity",
-        "targetHighPrice",
-        "targetLowPrice",
-        "targetMeanPrice",
-        "targetMedianPrice",
-        "recommendationMean",
-        "recommendationKey",
-        "numberOfAnalystOpinions",
     ]
     
     feat_importance = model.feature_importances_

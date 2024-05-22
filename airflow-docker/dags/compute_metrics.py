@@ -304,40 +304,6 @@ def compute_metrics():
         query_result = cur.fetchall()
         last_valuations = pd.DataFrame(query_result, columns=colnames)
 
-        # query = """
-        #     WITH last_stock_info 
-        #     AS 
-        #     (
-        #     SELECT
-        #         s."symbol",
-        #         s."date",
-        #         s."sharesOutstanding"
-        #     FROM (
-        #         SELECT
-        #             "symbol",
-        #             MAX("date") AS last_date
-        #         FROM stock_information
-        #         GROUP BY "symbol"
-        #         ) l
-        #     LEFT JOIN stock_information AS s ON s."symbol" = l."symbol" AND s."date" = l."last_date"
-        #     )
-        #     SELECT
-        #         v."symbol", 
-        #         v."bookValue",
-        #         v."EnterpriseValue",
-        #         (v."EnterpriseValue" - v."MarketCap") AS "NetDebt",
-        #         v."MarketCap",
-        #         last_stock_info."sharesOutstanding",
-        #         (v."MarketCap" / last_stock_info."sharesOutstanding") AS "stock_price"
-        #     FROM last_valuations AS v
-        #     LEFT JOIN last_stock_info ON last_stock_info."symbol" = v."symbol";
-        # """
-
-        # cur.execute(query)
-        # colnames = [desc[0] for desc in cur.description]
-        # query_result = cur.fetchall()
-        # last_valuations = pd.DataFrame(query_result, columns=colnames)
-
         query = """
             SELECT
                 hf."symbol", 
@@ -377,92 +343,136 @@ def compute_metrics():
 
         # ---------------------------------------------------------------------------------------------------
         # Query ML features
+        
+        # query = """
+        #     WITH last_stock_info 
+        #     AS 
+        #     (
+        #     SELECT si.*
+        #     FROM (
+        #         SELECT
+        #             "symbol",
+        #             MAX("date") AS last_date
+        #         FROM stock_information
+        #         GROUP BY "symbol"
+        #         ) lsi
+        #     LEFT JOIN stock_information AS si ON si."symbol" = lsi."symbol" AND si."date" = lsi."last_date"
+        #     ),
+        #     last_ratings
+        #     AS
+        #     (
+        #     SELECT ra.*
+        #     FROM (
+        #         SELECT
+        #             "symbol",
+        #             MAX("date") AS last_date
+        #         FROM ratings
+        #         GROUP BY "symbol"
+        #         ) lra
+        #     LEFT JOIN ratings AS ra ON ra."symbol" = lra."symbol" AND ra."date" = lra."last_date"
+        #     )
+        #     SELECT 
+        #         gi."symbol",
+        #         gi."sector",
+        #         gi."industry",
+        #         gi."fullTimeEmployees",
+        #         gi."regularMarketSource",
+        #         gi."exchange",
+        #         gi."quoteType",
+        #         gi."currency",
+        #         last_ratings."auditRisk",
+        #         last_ratings."boardRisk",
+        #         last_ratings."compensationRisk",
+        #         last_ratings."shareHolderRightsRisk",
+        #         last_ratings."overallRisk",
+        #         last_ratings."totalEsg",
+        #         last_ratings."environmentScore",
+        #         last_ratings."socialScore",
+        #         last_ratings."governanceScore",
+        #         last_ratings."highestControversy",
+        #         last_stock_info."floatShares",
+        #         last_stock_info."sharesOutstanding",
+        #         last_stock_info."heldPercentInsiders",
+        #         last_stock_info."heldPercentInstitutions",  
+        #         last_financials."totalCash",
+        #         last_financials."totalCashPerShare",
+        #         last_financials."totalDebt",
+        #         last_financials."quickRatio",
+        #         last_financials."currentRatio",
+        #         last_financials."debtToEquity",
+        #         last_financials."totalRevenue",
+        #         last_financials."revenuePerShare",
+        #         last_financials."revenueGrowth",
+        #         last_financials."grossProfits",
+        #         last_financials."grossMargins",
+        #         last_financials."operatingMargins",
+        #         last_financials."ebitda",
+        #         last_financials."ebitdaMargins",
+        #         last_financials."earningsGrowth",
+        #         last_financials."profitMargins",
+        #         last_financials."freeCashflow",
+        #         last_financials."operatingCashflow",
+        #         last_financials."returnOnAssets",
+        #         last_financials."returnOnEquity",
+        #         last_estimates."targetHighPrice",
+        #         last_estimates."targetLowPrice",
+        #         last_estimates."targetMeanPrice",
+        #         last_estimates."targetMedianPrice",
+        #         last_estimates."recommendationMean",
+        #         last_estimates."recommendationKey",
+        #         last_estimates."numberOfAnalystOpinions",
+        #         last_stock_prices."close",
+        #         last_stock_prices."date"
+        #     FROM general_information AS gi
+        #     LEFT JOIN last_ratings ON gi."symbol" = last_ratings.symbol
+        #     LEFT JOIN last_stock_info ON gi."symbol" = last_stock_info.symbol
+        #     LEFT JOIN last_financials ON gi."symbol" = last_financials.symbol
+        #     LEFT JOIN last_estimates ON gi."symbol" = last_estimates.symbol
+        #     LEFT JOIN last_stock_prices ON gi."symbol" = last_stock_prices.symbol
+        #     """
+        
         query = """
-            WITH last_stock_info 
+            WITH last_financials 
             AS 
             (
-            SELECT si.*
+            SELECT hf.*
             FROM (
                 SELECT
                     "symbol",
                     MAX("date") AS last_date
-                FROM stock_information
+                FROM historical_financials
                 GROUP BY "symbol"
-                ) lsi
-            LEFT JOIN stock_information AS si ON si."symbol" = lsi."symbol" AND si."date" = lsi."last_date"
-            ),
-            last_ratings
-            AS
-            (
-            SELECT ra.*
-            FROM (
-                SELECT
-                    "symbol",
-                    MAX("date") AS last_date
-                FROM ratings
-                GROUP BY "symbol"
-                ) lra
-            LEFT JOIN ratings AS ra ON ra."symbol" = lra."symbol" AND ra."date" = lra."last_date"
+                ) lf
+            LEFT JOIN historical_financials AS hf ON hf."symbol" = lf."symbol" AND hf."date" = lf."last_date"
             )
             SELECT 
-                gi."symbol",
+                last_financials."symbol",
+                last_financials."date",
+                last_financials."NetDebt",
+                last_financials."OrdinarySharesNumber",
+                last_financials."TotalRevenue",
+                last_financials."RevenueGrowth",
+                last_financials."GrossMargin",
+                last_financials."EBITDAMargin",
+                last_financials."EBITMargin",
+                last_financials."PretaxIncomeMargin", 
+                last_financials."NetIncomeMargin", 
+                last_financials."Leverage",
+                last_financials."PercentageCapitalExpenditureRevenue",
+                last_financials."ReturnOnEquity",
+                last_financials."ReturnOnAssets",
+                last_financials."FreeCashFlowMargin",
+                last_financials."ConversionEBITDAFreeCashFlow",
+                last_financials."ConversionNetIncomeFreeCashFlow",
+                last_financials."ConversionEBITDACash",
+                last_financials."ConversionNetIncomeCash",
                 gi."sector",
                 gi."industry",
-                gi."fullTimeEmployees",
-                gi."regularMarketSource",
-                gi."exchange",
-                gi."quoteType",
-                gi."currency",
-                last_ratings."auditRisk",
-                last_ratings."boardRisk",
-                last_ratings."compensationRisk",
-                last_ratings."shareHolderRightsRisk",
-                last_ratings."overallRisk",
-                last_ratings."totalEsg",
-                last_ratings."environmentScore",
-                last_ratings."socialScore",
-                last_ratings."governanceScore",
-                last_ratings."highestControversy",
-                last_stock_info."floatShares",
-                last_stock_info."sharesOutstanding",
-                last_stock_info."heldPercentInsiders",
-                last_stock_info."heldPercentInstitutions",  
-                last_financials."totalCash",
-                last_financials."totalCashPerShare",
-                last_financials."totalDebt",
-                last_financials."quickRatio",
-                last_financials."currentRatio",
-                last_financials."debtToEquity",
-                last_financials."totalRevenue",
-                last_financials."revenuePerShare",
-                last_financials."revenueGrowth",
-                last_financials."grossProfits",
-                last_financials."grossMargins",
-                last_financials."operatingMargins",
-                last_financials."ebitda",
-                last_financials."ebitdaMargins",
-                last_financials."earningsGrowth",
-                last_financials."profitMargins",
-                last_financials."freeCashflow",
-                last_financials."operatingCashflow",
-                last_financials."returnOnAssets",
-                last_financials."returnOnEquity",
-                last_estimates."targetHighPrice",
-                last_estimates."targetLowPrice",
-                last_estimates."targetMeanPrice",
-                last_estimates."targetMedianPrice",
-                last_estimates."recommendationMean",
-                last_estimates."recommendationKey",
-                last_estimates."numberOfAnalystOpinions",
-                last_stock_prices."close",
-                last_stock_prices."date"
-            FROM general_information AS gi
-            LEFT JOIN last_ratings ON gi."symbol" = last_ratings.symbol
-            LEFT JOIN last_stock_info ON gi."symbol" = last_stock_info.symbol
-            LEFT JOIN last_financials ON gi."symbol" = last_financials.symbol
-            LEFT JOIN last_estimates ON gi."symbol" = last_estimates.symbol
-            LEFT JOIN last_stock_prices ON gi."symbol" = last_stock_prices.symbol
-            """
+                gi."country",
+                gi."fullTimeEmployees"
+            FROM last_financials
+            LEFT JOIN general_information gi ON last_financials."symbol" = gi."symbol"
+        """
 
         cur.execute(query)
         colnames = [desc[0] for desc in cur.description]
@@ -477,9 +487,9 @@ def compute_metrics():
         # ---------------------------------------------------------------------------------------------------
         # Load ML models
 
-        preprocessor_file_path = os.path.join(files_dir_path, "test_preprocessor.pkl")
-        regression_model_file_path = os.path.join(files_dir_path, "test_model.pkl")
-        clustering_model_file_path = os.path.join(files_dir_path, "test_clustering.pkl")
+        preprocessor_file_path = os.path.join(files_dir_path, "test_preprocessor_2.pkl")
+        regression_model_file_path = os.path.join(files_dir_path, "test_model_2.pkl")
+        clustering_model_file_path = os.path.join(files_dir_path, "test_clustering_2.pkl")
         preprocessor = pickle.load(open(preprocessor_file_path, 'rb'))
         regression_model = pickle.load(open(regression_model_file_path, 'rb'))
         clustering_model = pickle.load(open(clustering_model_file_path, 'rb'))
@@ -497,16 +507,18 @@ def compute_metrics():
         # Sector Peers
         mean_sector_multiples, sector_peers = peers_valuation("sector", last_financials, last_valuations, last_stock_prices)
         sector_peers.drop("sector", axis=1, inplace=True)
-        print(sector_peers.columns)
+        print(sector_peers)
 
         # ---------------------------------------------------------------------------------------------------
         # Clustering Peers
 
         # Preprocess features
         symbols = ML_features['symbol']
-        current_price = ML_features['close']
+        current_price = last_stock_prices['lastPrice']
+        bridge_EV_equity = ML_features['NetDebt']
+        nb_shares = ML_features['OrdinarySharesNumber']
         dates = ML_features['date']
-        X = ML_features.drop(['symbol', 'close', 'date'], axis=1)
+        X = ML_features.drop(['symbol', 'NetDebt', 'OrdinarySharesNumber'], axis=1)
         X_prep = preprocessor.transform(X)
 
         # Predict clusters
@@ -515,7 +527,6 @@ def compute_metrics():
         # Perform valuation
         last_valuations['cluster'] = clusters
         mean_cluster_multiples, cluster_peers = peers_valuation("cluster", last_financials, last_valuations, last_stock_prices)
-        print(cluster_peers)
 
         # ---------------------------------------------------------------------------------------------------
         # Regression ML
@@ -523,12 +534,15 @@ def compute_metrics():
         # Predict
         predictions = regression_model.predict(X_prep)
 
+        # Transform EV into stock price
+        predictions_stock_price = (predictions - bridge_EV_equity) / nb_shares
+
         # Compute differences
         regression_ML = pd.DataFrame(data=current_price)
-        regression_ML['RegressionPrediction'] = predictions
+        regression_ML['RegressionPrediction'] = predictions_stock_price
         regression_ML['date'] = dates
-        regression_ML['RegressionAbsoluteDiff'] = regression_ML['RegressionPrediction'] - regression_ML['close']
-        regression_ML['RegressionRelativeDiff'] = regression_ML['RegressionAbsoluteDiff'] / regression_ML['close']
+        regression_ML['RegressionAbsoluteDiff'] = regression_ML['RegressionPrediction'] - regression_ML['lastPrice']
+        regression_ML['RegressionRelativeDiff'] = regression_ML['RegressionAbsoluteDiff'] / regression_ML['lastPrice']
         regression_ML['symbol'] = symbols
         regression_ML = regression_ML[['symbol', 'date', 'RegressionPrediction', 'RegressionAbsoluteDiff', 'RegressionRelativeDiff']]
         
