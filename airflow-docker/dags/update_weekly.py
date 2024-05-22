@@ -475,8 +475,8 @@ def update_db_weekly():
         create_last_financials_table,
         create_historical_financials_table,
         create_temp_historical_financials_table,
-        create_dividends_weekly_table, 
-        create_temp_dividends_table, 
+        create_dividends_weekly_table,
+        create_temp_dividends_table,
     ] >> download_data() >> update_db()
 
 dag = update_db_weekly()
