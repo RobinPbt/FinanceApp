@@ -255,10 +255,10 @@ def peers_valuation(groupby_col, financials, valuations, stock_price):
 def target_confidence_estimates(numberOfAnalystOpinions):
     """Define a confidence level on the target price --> basic rule for now on number of analysts"""
     
-    if numberOfAnalystOpinions == np.NaN: # DOES NOT WORK ?
+    if not numberOfAnalystOpinions:
         confidence = "NaN"
     
-    if numberOfAnalystOpinions <= 10:
+    elif numberOfAnalystOpinions <= 10:
         confidence = "Low"
     
     elif numberOfAnalystOpinions <= 15:

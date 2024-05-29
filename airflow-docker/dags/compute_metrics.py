@@ -667,7 +667,10 @@ def compute_metrics():
             SELECT *
             FROM regression_ML_temp
             ON CONFLICT("symbol", "date")
-            DO NOTHING;
+            DO UPDATE SET 
+                "RegressionPrediction" = EXCLUDED."RegressionPrediction",
+                "RegressionAbsoluteDiff" = EXCLUDED."RegressionAbsoluteDiff",
+                "RegressionRelativeDiff" = EXCLUDED."RegressionRelativeDiff";
             DROP TABLE IF EXISTS regression_ML_temp;
         """
 
