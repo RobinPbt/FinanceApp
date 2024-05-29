@@ -125,7 +125,6 @@ def get_all_symbol_info(symbol):
     ratings = get_single_symbol_info("ratings", symbol, order_by="date", limit=1)
     estimates = get_single_symbol_info("last_estimates", symbol)
     valuation = get_single_symbol_info("last_valuations", symbol)
-    # financials = get_single_symbol_info("last_financials", symbol)
     dividends = get_single_symbol_info("dividends_weekly", symbol, order_by="exDividendDate", limit=1)
 
     query = """
@@ -170,24 +169,32 @@ def get_all_symbol_info(symbol):
     return general_info, ratings, estimates, valuation, financials, dividends
 
 @st.cache_data
-def get_daily_stock_prices(symbol):
+def get_daily_stock_prices_and_valuations(symbol):
 
     daily_stock_prices = get_single_symbol_info("stock_price_daily", symbol)
+    daily_valuations = get_single_symbol_info("valuations_daily", symbol)
 
     # Transform data
     daily_stock_prices = daily_stock_prices[['date', 'adjclose']] # Select columns
     daily_stock_prices['date'] = daily_stock_prices['date'].apply(lambda x: x.date()) # Convert timestamp into date
 
+    daily_valuations = daily_valuations[['date', 'EnterpriseValueRevenueMultiple', 'EnterpriseValueEBITDAMultiple', 'PriceToBookRatio', 'PriceEarningsRatio']] # Select columns
+    daily_valuations['date'] = daily_valuations['date'].apply(lambda x: x.date()) # Convert timestamp into date
+
     timezone = pytz.timezone('CET')
     query_time = dt.datetime.now(tz=timezone) # Get current time
-    delta = dt.timedelta(weeks=52) # Get desired delta
-    one_year_from_now = query_time - delta # Compute date time delta from now
+    
+    one_year_delta = dt.timedelta(weeks=52) # Get desired delta
+    one_year_from_now = query_time - one_year_delta # Compute date time delta from now
     one_year_from_now = one_year_from_now.date() # Convert timestamp into date
 
     daily_stock_prices = daily_stock_prices[daily_stock_prices['date'] > one_year_from_now] # Delete all data before the caclculated date
     daily_stock_prices.drop_duplicates(subset=['date'], inplace=True) # Drop duplicates
 
-    return daily_stock_prices
+    daily_valuations = daily_valuations[daily_valuations['date'] > one_year_from_now] # Delete all data before the caclculated date
+    daily_valuations.drop_duplicates(subset=['date'], inplace=True) # Drop duplicates
+
+    return daily_stock_prices, daily_valuations
 
 # ---------------------------------------------------------------------------------------------------
 # LLM model and functions
@@ -273,7 +280,7 @@ ticker_selection = tickers_names[tickers_names["shortName"] == company_selection
 
 # Load datas depending on ticker_selection
 intraday_stock_prices = get_intraday_stock_prices(ticker_selection)
-daily_stock_prices = get_daily_stock_prices(ticker_selection)
+daily_stock_prices, daily_valuations = get_daily_stock_prices_and_valuations(ticker_selection)
 general_info, ratings, estimates, valuation, financials, dividends = get_all_symbol_info(ticker_selection)
 
 header = st.container()
@@ -285,7 +292,7 @@ with header:
     """)
 
 # Create tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["General information", "📈 Stock prices", "Key financials", "Estimates", "Ratings"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["General information", "📈 Stock prices", "Key financials", "Estimates", "Ratings", "Multiples"])
 
 # ---------------------------------------------------------------------------------------------------
 # General information tab
@@ -646,4 +653,52 @@ with tab5:
             label="Highest Controversy", 
             value=ratings["highestControversy"].values[0]
         )
+
+# ---------------------------------------------------------------------------------------------------
+# Multiples tab
+
+with tab6:
+    st.write("""## Multiples""")
+
+    multiple_selection = st.radio(label="Multiple selection", options=["xRevenue", "xEBITDA", "Price to Book", "Price Earnings"], label_visibility="collapsed")
+
+    if multiple_selection == "xRevenue":
+
+        fig = px.line(
+            daily_valuations, 
+            x='date', 
+            y="EnterpriseValueRevenueMultiple",
+            labels= {"date" : "", "EnterpriseValueRevenueMultiple" : ""}
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    elif multiple_selection == "xEBITDA":
+
+        fig = px.line(
+            daily_valuations, 
+            x='date', 
+            y="EnterpriseValueEBITDAMultiple",
+            labels= {"date" : "", "EnterpriseValueEBITDAMultiple" : ""}
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    elif multiple_selection == "Price to Book":
+
+        fig = px.line(
+            daily_valuations, 
+            x='date', 
+            y="PriceToBookRatio",
+            labels= {"date" : "", "PriceToBookRatio" : ""}
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    elif multiple_selection == "Price Earnings":
+
+        fig = px.line(
+            daily_valuations, 
+            x='date', 
+            y="PriceEarningsRatio",
+            labels= {"date" : "", "PriceEarningsRatio" : ""}
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
