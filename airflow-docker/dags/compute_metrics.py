@@ -447,7 +447,7 @@ def compute_metrics():
             )
             SELECT 
                 last_financials."symbol",
-                last_financials."date",
+                ls."date",
                 last_financials."NetDebt",
                 last_financials."OrdinarySharesNumber",
                 last_financials."TotalRevenue",
@@ -472,6 +472,7 @@ def compute_metrics():
                 gi."fullTimeEmployees"
             FROM last_financials
             LEFT JOIN general_information gi ON last_financials."symbol" = gi."symbol"
+            LEFT JOIN last_stock_prices ls ON last_financials."symbol" = ls."symbol"
         """
 
         cur.execute(query)
@@ -507,14 +508,13 @@ def compute_metrics():
         # Sector Peers
         mean_sector_multiples, sector_peers = peers_valuation("sector", last_financials, last_valuations, last_stock_prices)
         sector_peers.drop("sector", axis=1, inplace=True)
-        print(sector_peers)
 
         # ---------------------------------------------------------------------------------------------------
         # Clustering Peers
 
         # Preprocess features
         symbols = ML_features['symbol']
-        current_price = last_stock_prices['lastPrice']
+        # current_price = last_stock_prices['lastPrice']
         bridge_EV_equity = ML_features['NetDebt']
         nb_shares = ML_features['OrdinarySharesNumber']
         dates = ML_features['date']
@@ -538,12 +538,12 @@ def compute_metrics():
         predictions_stock_price = (predictions - bridge_EV_equity) / nb_shares
 
         # Compute differences
-        regression_ML = pd.DataFrame(data=current_price)
-        regression_ML['RegressionPrediction'] = predictions_stock_price
+        regression_ML = pd.DataFrame(predictions_stock_price, columns=['RegressionPrediction'])
+        regression_ML['symbol'] = symbols
         regression_ML['date'] = dates
+        regression_ML = regression_ML.merge(last_stock_prices[['symbol', 'lastPrice']], on='symbol', how='left') # Add last stock prices to compute diff
         regression_ML['RegressionAbsoluteDiff'] = regression_ML['RegressionPrediction'] - regression_ML['lastPrice']
         regression_ML['RegressionRelativeDiff'] = regression_ML['RegressionAbsoluteDiff'] / regression_ML['lastPrice']
-        regression_ML['symbol'] = symbols
         regression_ML = regression_ML[['symbol', 'date', 'RegressionPrediction', 'RegressionAbsoluteDiff', 'RegressionRelativeDiff']]
         
         # ---------------------------------------------------------------------------------------------------
